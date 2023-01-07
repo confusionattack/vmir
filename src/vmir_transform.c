@@ -22,6 +22,17 @@
  * SOFTWARE.
  */
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#include <malloc.h>
+
+static int __builtin_ffs(int x)
+{
+  unsigned long i;
+  if (_BitScanForward(&i, x)) return i + 1;
+  return 0;
+}
+#endif
 
 static void liveness_set_succ(ir_function_t *f, ir_instr_t *ii);
 
@@ -989,13 +1000,13 @@ exit_ssa_edge(ir_unit_t *iu, ir_function_t *f, ir_bb_t *bb,
 
     phi_lift_node_t *cur = start;
     while(1) {
-      phi_lift_node_t *src = cur->pln_dst->ple_src;
-      if(src == start)
+      phi_lift_node_t *next = cur->pln_dst->ple_src;
+      if(next == start)
         break;
 
-      insert_move(iu, cur->pln_vt, src->pln_vt, last);
+      insert_move(iu, cur->pln_vt, next->pln_vt, last);
       LIST_REMOVE(cur, pln_link);
-      cur = src;
+      cur = next;
     }
 
     insert_move(iu, cur->pln_vt, tmpreg, last);
@@ -1852,8 +1863,7 @@ liveness_update(ir_function_t *f, int setwords, int ffv)
           memset(new_out, 0, setwords * sizeof(uint32_t));
 
           for(int j = 0; j < ii->ii_num_succ; j++) {
-            ir_bb_t *ib = ii->ii_succ[j];
-            ir_instr_t *succ = TAILQ_FIRST(&ib->ib_instrs);
+            ir_instr_t *succ = TAILQ_FIRST(&ii->ii_succ[j]->ib_instrs);
             assert(succ != NULL);
             const uint32_t *in = succ->ii_liveness + setwords * 2;
             bitset_or(new_out, in, setwords);
@@ -1913,7 +1923,7 @@ liveness_update(ir_function_t *f, int setwords, int ffv)
 /**
  *
  */
-static void __attribute__((unused))
+static void VMIR_UNUSED
 print_liveout(ir_unit_t *iu, ir_function_t *f, int temp_values, int ffv)
 {
   ir_bb_t *ib;
@@ -1979,7 +1989,7 @@ coalesce(ir_unit_t *iu,
         for(int j = 0; j < setwords; j++) {
           uint32_t w = out[j];
           while(w) {
-            int b = ffs(w) - 1;
+            int b = __builtin_ffs(w) - 1;
             int y = (j << 5) + b;
             w &= ~(1 << b);
             if(y != x && y != v) {

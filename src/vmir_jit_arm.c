@@ -337,7 +337,7 @@ jit_offset_to_imm8_U(int offset)
 #define JIT_LOAD_EXT_UNSIGNED 1
 #define JIT_LOAD_EXT_SIGNED   2
 
-static int __attribute__((warn_unused_result))
+static int VMIR_WARN_UNUSED_RESULT
 jit_loadvalue_cond(ir_unit_t *iu, ir_valuetype_t vt, int reg, jitctx_t *jc,
                    uint32_t cond, int ext)
 {
@@ -476,7 +476,7 @@ jit_loadvalue_cond(ir_unit_t *iu, ir_valuetype_t vt, int reg, jitctx_t *jc,
 /**
  *
  */
-static int __attribute__((warn_unused_result))
+static int VMIR_WARN_UNUSED_RESULT
 jit_loadvalue(ir_unit_t *iu, ir_valuetype_t vt, int reg, jitctx_t *jc)
 {
   return jit_loadvalue_cond(iu, vt, reg, jc, ARM_COND_AL, 0);
@@ -801,7 +801,7 @@ jit_compute_ea(ir_unit_t *iu, ir_valuetype_t baseptr,
   int regoff = -1, shift = 0;
   if(value_offset.value >= 0) {
     regoff = jit_loadvalue(iu, value_offset, R_TMPB, jc);
-    shift = ffs(value_offset_multiply) - 1;
+    shift = __builtin_ffs(value_offset_multiply) - 1;
 
     if((1 << shift) != value_offset_multiply) {
       jit_loadimm(iu, value_offset_multiply, R_TMPA, jc);

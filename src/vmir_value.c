@@ -268,7 +268,7 @@ value_append(ir_unit_t *iu)
 /**
  *
  */
-static unsigned int __attribute__((unused))
+static unsigned int VMIR_UNUSED
 value_reg(const ir_value_t *iv)
 {
   assert(iv->iv_class == IR_VC_REGFRAME);
@@ -279,7 +279,7 @@ value_reg(const ir_value_t *iv)
 /**
  *
  */
-static ir_function_t *__attribute__((unused))
+static ir_function_t *VMIR_UNUSED
 value_function(ir_unit_t *iu, int id)
 {
   if(id >= VECTOR_LEN(&iu->iu_values))
@@ -293,7 +293,7 @@ value_function(ir_unit_t *iu, int id)
 /**
  *
  */
-static uint32_t __attribute__((unused))
+static uint32_t VMIR_UNUSED
 value_function_addr(const ir_value_t *iv)
 {
   assert(iv->iv_class == IR_VC_FUNCTION);
@@ -398,6 +398,7 @@ value_regframe_slots(ir_unit_t *iu, int type)
   default:
     parser_error(iu, "Can't determine regframe slots for type %s",
                  type_str(iu, it));
+    return -1;
   }
 }
 
@@ -433,7 +434,7 @@ value_alloc_function_arg(ir_unit_t *iu, int type)
 /**
  *
  */
-static uint32_t __attribute__((unused))
+static uint32_t VMIR_UNUSED
 value_get_const32(ir_unit_t *iu, const ir_value_t *iv)
 {
   ir_type_t *it = type_get(iu, iv->iv_type);
@@ -467,13 +468,14 @@ value_get_const32(ir_unit_t *iu, const ir_value_t *iv)
 
   parser_error(iu, "Unable to value_get_const for value %s",
                value_str(iu, iv));
+  return -1;
 }
 
 
 /**
  *
  */
-static uint32_t __attribute__((unused))
+static uint32_t VMIR_UNUSED
 value_get_const(ir_unit_t *iu, const ir_value_t *iv)
 {
   ir_type_t *it = type_get(iu, iv->iv_type);
@@ -507,13 +509,14 @@ value_get_const(ir_unit_t *iu, const ir_value_t *iv)
 
   parser_error(iu, "Unable to value_get_const for value %s",
                value_str(iu, iv));
+  return -1;
 }
 
 
 /**
  *
  */
-static uint64_t __attribute__((unused))
+static uint64_t VMIR_UNUSED
 value_get_const64(ir_unit_t *iu, const ir_value_t *iv)
 {
   assert(iv->iv_class == IR_VC_CONSTANT);
@@ -534,6 +537,7 @@ value_get_const64(ir_unit_t *iu, const ir_value_t *iv)
   default:
     parser_error(iu, "Unable to get_constant for type %s",
                  type_str(iu, it));
+    return 0;
   }
 }
 
@@ -557,7 +561,7 @@ value_create_const32(ir_unit_t *iu, int v, ir_type_code_t code)
 /**
  *
  */
-__attribute__((unused))
+VMIR_UNUSED
 static ir_valuetype_t
 value_create_const64(ir_unit_t *iu, uint64_t v, ir_type_code_t code)
 {
@@ -809,7 +813,7 @@ value_str_id(ir_unit_t *iu, int id)
 /**
  *
  */
-  __attribute__((unused)) static const char *
+  VMIR_UNUSED static const char *
 value_str_vt(ir_unit_t *iu, ir_valuetype_t vt)
 {
   int len = value_print_vt(NULL, iu, vt);
@@ -824,7 +828,7 @@ value_str_vt(ir_unit_t *iu, ir_valuetype_t vt)
 /**
  *
  */
-static void __attribute__((unused))
+static void VMIR_UNUSED
 value_print_list(ir_unit_t *iu)
 {
   for(int i = 0; i < iu->iu_next_value; i++) {

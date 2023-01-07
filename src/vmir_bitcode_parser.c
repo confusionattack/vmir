@@ -221,16 +221,20 @@ module_rec_handler(ir_unit_t *iu, int op,
     break;
 
   case MODULE_CODE_GLOBALVAR:
-    return module_globalvar(iu, argc, argv);
+    module_globalvar(iu, argc, argv);
+    break;
 
   case MODULE_CODE_FUNCTION:
-    return module_function(iu, argc, argv);
+    module_function(iu, argc, argv);
+    break;
 
   case MODULE_CODE_ALIAS:
-    return module_alias(iu, argc, argv);
+    module_alias(iu, argc, argv);
+    break;
 
   case MODULE_CODE_VSTOFFSET:
-    return module_vstoffset(iu, argc, argv);
+    module_vstoffset(iu, argc, argv);
+    break;
 
   case MODULE_CODE_COMDAT:
   case MODULE_CODE_METADATA_VALUES_UNUSED:
@@ -253,6 +257,7 @@ paramattr_group_rec_handler(ir_unit_t *iu, int op,
 {
   char *key, *value;
   const char *ctx = "PARAMATTR_GRP_CODE_ENTRY";
+  (void)ctx;
   switch(op) {
   case 3: // PARAMATTR_GRP_CODE_ENTRY
     if(argc < 3)
@@ -326,6 +331,7 @@ paramattr_rec_handler(ir_unit_t *iu, int op,
 {
   int off;
   const char *ctx = "paramattr";
+  (void)ctx;
 
   switch(op) {
   case 2:
@@ -396,7 +402,7 @@ set_value_name(ir_unit_t *iu, int vid, char *str)
     if(iv->iv_func->if_ext_func == NULL) {
       if(!vmop_resolve(iv->iv_func)) {
         iv->iv_func->if_ext_func =
-          (void *)iu->iu_external_function_resolver(iv->iv_func->if_name, iu->iu_opaque);
+          (vm_function_t *)iu->iu_external_function_resolver(iv->iv_func->if_name, iu->iu_opaque);
       }
     }
 
@@ -584,20 +590,20 @@ constants_rec_handler(ir_unit_t *iu, int op,
         case IR_TYPE_DOUBLE:
           iv->iv_data = malloc(sizeof(uint64_t) * argc);
           for(int i = 0; i < argc; i++)
-            host_wr64(iv->iv_data + i * sizeof(uint64_t), argv[i]);
+            host_wr64((char *)iv->iv_data + i * sizeof(uint64_t), argv[i]);
           return;
 
         case IR_TYPE_INT32:
         case IR_TYPE_FLOAT:
           iv->iv_data = malloc(sizeof(uint32_t) * argc);
           for(int i = 0; i < argc; i++)
-            host_wr32(iv->iv_data + i * sizeof(uint32_t), argv[i]);
+            host_wr32((char *)iv->iv_data + i * sizeof(uint32_t), argv[i]);
           return;
 
         case IR_TYPE_INT16:
           iv->iv_data = malloc(sizeof(uint16_t) * argc);
           for(int i = 0; i < argc; i++)
-            host_wr16(iv->iv_data + i * sizeof(uint16_t), argv[i]);
+            host_wr16((char *)iv->iv_data + i * sizeof(uint16_t), argv[i]);
           return;
 
         default:
@@ -697,8 +703,9 @@ static void
 types_new_rec_handler(struct ir_unit *iu, int op,
                       unsigned int argc, const int64_t *argv)
 {
-  ir_type_t it;
+  ir_type_t it = {0};
   const char *ctx = "types";
+  (void)ctx;
 
   assert(iu->iu_types_created == 0);
 
@@ -838,7 +845,7 @@ ir_enter_subblock(ir_unit_t *iu, bcbitstream_t *bs, int outer_id_width)
   ir_blockinfo_t *ibi = blockinfo_find(iu, blockid);
 
   int valuelistsize = 0;
-  rec_handler_t *rh;
+  rec_handler_t *rh = NULL;
 
   switch(blockid) {
   case BITCODE_BLOCKINFO:
@@ -1012,7 +1019,7 @@ load_array(bcbitstream_t *bs, ir_unit_t *iu, const ir_abbrev_operand_t *type)
   const int arraysize = read_vbr(bs, 6);
   for(int i = 0; i < arraysize; i++) {
 
-    int64_t a;
+    int64_t a = 0;
 
     switch(type->iao_type) {
     case IAOT_FIXED_WIDTH:
@@ -1059,6 +1066,7 @@ ir_dispatch_abbrev(ir_unit_t *iu, unsigned int id, rec_handler_t *rh,
   const ir_abbrev_t *ia;
   const struct ir_abbrev_queue *iaq;
   const int orig_id = id;
+  (void)orig_id;
   id -= 4;
   ir_block_t *b = LIST_FIRST(&iu->iu_blocks);
 
@@ -1085,7 +1093,7 @@ ir_dispatch_abbrev(ir_unit_t *iu, unsigned int id, rec_handler_t *rh,
   int nops = ia->ia_nops;
 
   for(i = 0; i < nops; i++) {
-    int64_t a;
+    int64_t a = 0;
     switch(ia->ia_ops[i].iao_type) {
     case IAOT_LITTERAL:
       a = ia->ia_ops[i].iao_data;

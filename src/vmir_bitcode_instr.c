@@ -278,7 +278,7 @@ parse_gep(ir_unit_t *iu, unsigned int argc, const int64_t *argv, int op)
     i->indicies[n].type = current_type_index;
     ir_value_t *index_value = value_get(iu, values[n].value);
     int element;
-    int inner_type_index;
+    int inner_type_index = -1;
     ir_type_t *ct = type_get(iu, current_type_index);
 
     switch(ct->it_code) {
@@ -800,30 +800,37 @@ function_rec_handler(ir_unit_t *iu, int op,
     return;
 
   case FUNC_CODE_INST_BINOP:
-    return parse_binop(iu, argc, argv);
+    parse_binop(iu, argc, argv);
+    break;
 
   case FUNC_CODE_INST_CAST:
-    return parse_cast(iu, argc, argv);
+    parse_cast(iu, argc, argv);
+    break;
 
   case FUNC_CODE_INST_LOAD:
   case FUNC_CODE_INST_LOADATOMIC:
-    return parse_load(iu, argc, argv);
+    parse_load(iu, argc, argv);
+    break;
 
   case FUNC_CODE_INST_STORE_OLD:
   case FUNC_CODE_INST_STOREATOMIC_OLD:
-    return parse_store(iu, argc, argv, 1);
+    parse_store(iu, argc, argv, 1);
+    break;
 
   case FUNC_CODE_INST_STORE:
   case FUNC_CODE_INST_STOREATOMIC:
-    return parse_store(iu, argc, argv, 0);
+    parse_store(iu, argc, argv, 0);
+    break;
 
   case FUNC_CODE_INST_INBOUNDS_GEP_OLD:
   case FUNC_CODE_INST_GEP_OLD:
   case FUNC_CODE_INST_GEP:
-    return parse_gep(iu, argc, argv, op);
+    parse_gep(iu, argc, argv, op);
+    break;
 
   case FUNC_CODE_INST_CMP2:
-    return parse_cmp2(iu, argc, argv);
+    parse_cmp2(iu, argc, argv);
+    break;
 
   case FUNC_CODE_INST_BR:
     parse_br(iu, argc, argv);
@@ -831,7 +838,8 @@ function_rec_handler(ir_unit_t *iu, int op,
     break;
 
   case FUNC_CODE_INST_PHI:
-    return parse_phi(iu, argc, argv);
+    parse_phi(iu, argc, argv);
+    break;
 
   case FUNC_CODE_INST_INVOKE:
     parse_call_or_invoke(iu, argc, argv, IR_IC_INVOKE);

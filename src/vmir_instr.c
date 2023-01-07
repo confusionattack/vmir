@@ -653,7 +653,7 @@ instr_print(char **dstp, ir_unit_t *iu, const ir_instr_t *ii, int flags)
 
       if(f != NULL) {
         len += addstr(dstp, " ");
-        len += addstr(dstp, f->if_name ?: "<anon>");
+        len += addstr(dstp, f->if_name ? f->if_name : "<anon>");
       } else {
         len += addstr(dstp, " fptr in ");
         len += value_print_vt(dstp, iu, p->callee);
@@ -832,7 +832,7 @@ instr_str(ir_unit_t *iu, const ir_instr_t *ii, int flags)
 /**
  *
  */
-__attribute__((unused)) static char *
+VMIR_UNUSED static char *
 instr_stra(ir_unit_t *iu, const ir_instr_t *ii, int flags)
 {
   int len = instr_print(NULL, iu, ii, flags);
@@ -844,7 +844,7 @@ instr_stra(ir_unit_t *iu, const ir_instr_t *ii, int flags)
 }
 
 
-__attribute__((unused)) static int
+VMIR_UNUSED static int
 invert_pred(int pred)
 {
   switch(pred) {

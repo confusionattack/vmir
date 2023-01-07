@@ -191,7 +191,7 @@ wasm_parse_value_type(ir_unit_t *iu, wasm_bytestream_t *wbs)
   default:
     parser_error(iu, "Bad type code (byte) 0x%x at 0x%zx",
                  arg_type, wbs->ptr - wbs->start - 1);
-    break;
+    return 0;
   }
 }
 
@@ -218,8 +218,8 @@ wasm_parse_section_type(ir_unit_t *iu, wasm_bytestream_t *wbs)
     it.it_function.parameters =
       malloc(it.it_function.num_parameters * sizeof(int));
 
-    for(int i = 0; i < it.it_function.num_parameters; i++) {
-      it.it_function.parameters[i] = wasm_parse_value_type(iu, wbs);
+    for(int j = 0; j < it.it_function.num_parameters; j++) {
+      it.it_function.parameters[j] = wasm_parse_value_type(iu, wbs);
     }
 
     const uint32_t return_count = wbs_get_vu32(wbs);
@@ -256,7 +256,7 @@ import_function(ir_unit_t *iu, const char *module, const char *name, int type)
   if(f->if_ext_func == NULL) {
     if(!vmop_resolve(f)) {
       f->if_ext_func =
-        (void *)iu->iu_external_function_resolver(f->if_name, iu->iu_opaque);
+        (vm_function_t *)iu->iu_external_function_resolver(f->if_name, iu->iu_opaque);
     }
   }
 }
@@ -277,6 +277,7 @@ import_table(ir_unit_t *iu, const char *module, const char *name,
                  module, name);
 
   const uint32_t initial = wbs_get_vu32(wbs);
+  (void)initial;
   parser_error(iu, "Imported tables not yet supported: %s.%s size:%u",
                module, name, initial);
 }
@@ -292,6 +293,7 @@ import_memory(ir_unit_t *iu, const char *module, const char *name,
                  module, name);
 
   const uint32_t initial = wbs_get_vu32(wbs);
+  (void)initial;
   parser_error(iu, "Importing memory not yet supported: %s.%s initial_size:%u",
                module, name, initial);
 }
@@ -301,7 +303,9 @@ import_global(ir_unit_t *iu, const char *module, const char *name,
               wasm_bytestream_t *wbs)
 {
   const uint8_t type = wasm_parse_value_type(iu, wbs);
+  (void)type;
   const uint32_t mutable = wbs_get_vu32(wbs);
+  (void)mutable;
   parser_error(iu, "Importing global not yet supported: "
                "%s::%s type:0x%x mutable:%d",
                module, name, type, mutable);
@@ -479,7 +483,7 @@ vstack_clear(ir_unit_t *iu)
   iu->iu_wasm_value_stack.vh_length = 0;
 }
 
-__attribute__((unused))
+VMIR_UNUSED
 static void
 vstack_dump(ir_unit_t *iu)
 {
@@ -574,15 +578,15 @@ wasm_numeric(ir_unit_t *iu, ir_bb_t *ib, int code)
 {
   int binop = -1;
   switch(code) {
-  case 0x67:  return wasm_vmop(iu, ib, 1, VM_CLZ32, WASM_TYPE_I32);
-  case 0x68:  return wasm_vmop(iu, ib, 1, VM_CTZ32, WASM_TYPE_I32);
-  case 0x69:  return wasm_vmop(iu, ib, 1, VM_POP32, WASM_TYPE_I32);
-  case 0x79:  return wasm_vmop(iu, ib, 1, VM_CLZ64, WASM_TYPE_I64);
-  case 0x7a:  return wasm_vmop(iu, ib, 1, VM_CTZ64, WASM_TYPE_I64);
-  case 0x7b:  return wasm_vmop(iu, ib, 1, VM_POP64, WASM_TYPE_I64);
+  case 0x67:  wasm_vmop(iu, ib, 1, VM_CLZ32, WASM_TYPE_I32); return;
+  case 0x68:  wasm_vmop(iu, ib, 1, VM_CTZ32, WASM_TYPE_I32); return;
+  case 0x69:  wasm_vmop(iu, ib, 1, VM_POP32, WASM_TYPE_I32); return;
+  case 0x79:  wasm_vmop(iu, ib, 1, VM_CLZ64, WASM_TYPE_I64); return;
+  case 0x7a:  wasm_vmop(iu, ib, 1, VM_CTZ64, WASM_TYPE_I64); return;
+  case 0x7b:  wasm_vmop(iu, ib, 1, VM_POP64, WASM_TYPE_I64); return;
 
-  case 0x9c:  return wasm_vmop(iu, ib, 1, VM_FLOOR,  WASM_TYPE_F64);
-  case 0x8e:  return wasm_vmop(iu, ib, 1, VM_FLOORF, WASM_TYPE_F32);
+  case 0x9c:  wasm_vmop(iu, ib, 1, VM_FLOOR,  WASM_TYPE_F64); return;
+  case 0x8e:  wasm_vmop(iu, ib, 1, VM_FLOORF, WASM_TYPE_F32); return;
 
   case 0x92:
   case 0xa0:
@@ -642,8 +646,8 @@ static void
 wasm_convert(ir_unit_t *iu, ir_bb_t *ib, int code)
 {
   ir_instr_unary_t *i = instr_add(ib, sizeof(ir_instr_unary_t), IR_IC_CAST);
-  int op;
-  int type;
+  int op = 0;
+  int type = 0;
   switch(code) {
   case 0xa7:  op = CAST_TRUNC;   type = WASM_TYPE_I32;   break;
   case 0xa8:  op = CAST_FPTOSI;  type = WASM_TYPE_I32;   break;
@@ -759,7 +763,7 @@ wasm_cmp(ir_unit_t *iu, ir_bb_t *ib, int code)
 static void
 wasm_load(ir_unit_t *iu, ir_bb_t *ib, int code, wasm_bytestream_t *wbs)
 {
-  int type;
+  int type = 0;
   int cast = -1;
   int p = 0;
   switch(code) {
@@ -806,7 +810,7 @@ wasm_load(ir_unit_t *iu, ir_bb_t *ib, int code, wasm_bytestream_t *wbs)
 static void
 wasm_store(ir_unit_t *iu, ir_bb_t *ib, int code, wasm_bytestream_t *wbs)
 {
-  int type;
+  int type = 0;
   switch(code) {
   case 0x36: type = WASM_TYPE_I32; break;
   case 0x37: type = WASM_TYPE_I64; break;
@@ -835,7 +839,7 @@ wasm_store(ir_unit_t *iu, ir_bb_t *ib, int code, wasm_bytestream_t *wbs)
 static void
 wasm_const(ir_unit_t *iu, int code, wasm_bytestream_t *wbs)
 {
-  ir_valuetype_t vt;
+  ir_valuetype_t vt = {0};
 
   switch(code) {
   case 0x41:
@@ -1190,22 +1194,166 @@ wasm_parse_block(ir_unit_t *iu, ir_bb_t *ib,
       wasm_store_global(iu, ib, VECTOR_ITEM(&iu->iu_wasm_globalvar_map,
                                             wbs_get_vu32(wbs)));
       break;
-    case 0x28 ... 0x35:
+    case 0x28:
+    case 0x29:
+    case 0x2a:
+    case 0x2b:
+    case 0x2c:
+    case 0x2d:
+    case 0x2e:
+    case 0x2f:
+    case 0x30:
+    case 0x31:
+    case 0x32:
+    case 0x33:
+    case 0x34:
+    case 0x35:
       wasm_load(iu, ib, code, wbs);
       break;
-    case 0x36 ... 0x3e:
+    case 0x36:
+    case 0x37:
+    case 0x38:
+    case 0x39:
+    case 0x3a:
+    case 0x3b:
+    case 0x3c:
+    case 0x3d:
+    case 0x3e:
       wasm_store(iu, ib, code, wbs);
       break;
-    case 0x41 ... 0x44:
+    case 0x41:
+    case 0x42:
+    case 0x43:
+    case 0x44:
       wasm_const(iu, code, wbs);
       break;
-    case 0x45 ... 0x66:
+    case 0x45:
+    case 0x46:
+    case 0x47:
+    case 0x48:
+    case 0x49:
+    case 0x4a:
+    case 0x4b:
+    case 0x4c:
+    case 0x4d:
+    case 0x4e:
+    case 0x4f:
+    case 0x50:
+    case 0x51:
+    case 0x52:
+    case 0x53:
+    case 0x54:
+    case 0x55:
+    case 0x56:
+    case 0x57:
+    case 0x58:
+    case 0x59:
+    case 0x5a:
+    case 0x5b:
+    case 0x5c:
+    case 0x5d:
+    case 0x5e:
+    case 0x5f:
+    case 0x60:
+    case 0x61:
+    case 0x62:
+    case 0x63:
+    case 0x64:
+    case 0x65:
+    case 0x66:
       wasm_cmp(iu, ib, code);
       break;
-    case 0x67 ... 0xa6:
+    case 0x67:
+    case 0x68:
+    case 0x69:
+    case 0x6a:
+    case 0x6b:
+    case 0x6c:
+    case 0x6d:
+    case 0x6e:
+    case 0x6f:
+    case 0x70:
+    case 0x71:
+    case 0x72:
+    case 0x73:
+    case 0x74:
+    case 0x75:
+    case 0x76:
+    case 0x77:
+    case 0x78:
+    case 0x79:
+    case 0x7a:
+    case 0x7b:
+    case 0x7c:
+    case 0x7d:
+    case 0x7e:
+    case 0x7f:
+    case 0x80:
+    case 0x81:
+    case 0x82:
+    case 0x83:
+    case 0x84:
+    case 0x85:
+    case 0x86:
+    case 0x87:
+    case 0x88:
+    case 0x89:
+    case 0x8a:
+    case 0x8b:
+    case 0x8c:
+    case 0x8d:
+    case 0x8e:
+    case 0x8f:
+    case 0x90:
+    case 0x91:
+    case 0x92:
+    case 0x93:
+    case 0x94:
+    case 0x95:
+    case 0x96:
+    case 0x97:
+    case 0x98:
+    case 0x99:
+    case 0x9a:
+    case 0x9b:
+    case 0x9c:
+    case 0x9d:
+    case 0x9e:
+    case 0x9f:
+    case 0xa0:
+    case 0xa1:
+    case 0xa2:
+    case 0xa3:
+    case 0xa4:
+    case 0xa5:
+    case 0xa6:
       wasm_numeric(iu, ib, code);
       break;
-    case 0xa7 ... 0xbf:
+    case 0xa7:
+    case 0xa8:
+    case 0xa9:
+    case 0xaa:
+    case 0xab:
+    case 0xac:
+    case 0xad:
+    case 0xae:
+    case 0xaf:
+    case 0xb0:
+    case 0xb1:
+    case 0xb2:
+    case 0xb3:
+    case 0xb4:
+    case 0xb5:
+    case 0xb6:
+    case 0xb7:
+    case 0xb8:
+    case 0xb9:
+    case 0xba:
+    case 0xbb:
+    case 0xbc:
+    case 0xbd:
+    case 0xbe:
+    case 0xbf:
       wasm_convert(iu, ib, code);
       break;
 
@@ -1278,7 +1426,10 @@ parse_init_expr(ir_unit_t *iu, wasm_bytestream_t *wbs)
       break;
 
     switch(code) {
-    case 0x41 ... 0x44:
+    case 0x41:
+    case 0x42:
+    case 0x43:
+    case 0x44:
       wasm_const(iu, code, wbs);
       break;
 
@@ -1305,8 +1456,8 @@ wasm_parse_section_data(ir_unit_t *iu, wasm_bytestream_t *wbs)
 
     const uint32_t size = wbs_get_vu32(wbs);
     if(index == 0) {
-      memcpy(iu->iu_mem + offset, wbs->ptr, size);
-      iu->iu_data_ptr = MAX(iu->iu_data_ptr, offset + size);
+      memcpy((char *)iu->iu_mem + offset, wbs->ptr, size);
+      iu->iu_data_ptr = iu->iu_data_ptr > offset + size ? iu->iu_data_ptr : offset + size;
     }
     wbs->ptr += size;
   }
@@ -1346,7 +1497,7 @@ wasm_parse_section_global(ir_unit_t *iu, wasm_bytestream_t *wbs)
 static void
 wasm_add_fundamental_types(ir_unit_t *iu)
 {
-  ir_type_t it = {};
+  ir_type_t it = { 0 };
 
   it.it_code = IR_TYPE_VOID;
   VECTOR_PUSH_BACK(&iu->iu_types, it);
@@ -1373,7 +1524,7 @@ static void
 wasm_parse_module(ir_unit_t *iu, const void *start, const void *end)
 {
   wasm_bytestream_t bs = {
-    .start = start - 4,
+    .start = (const uint8_t *)start - 4,
     .ptr = start,
     .end = end
   };

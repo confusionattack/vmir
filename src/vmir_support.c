@@ -25,13 +25,25 @@
 #define VMIR_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define VMIR_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+#if defined(_MSC_VER)
+#include <windows.h>
+#else
+#include <sys/time.h>
+#endif
+
 /**
  *
  */
-static int64_t __attribute__((unused))
+static int64_t VMIR_UNUSED
 get_ts(void)
 {
-#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
+#if defined(_MSC_VER)
+  LARGE_INTEGER freq;
+  QueryPerformanceFrequency(&freq);
+  LARGE_INTEGER now;
+  QueryPerformanceCounter(&now);
+  return now.QuadPart * 1000000LL / freq.QuadPart;
+#elif _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
   struct timespec tv;
   clock_gettime(CLOCK_MONOTONIC, &tv);
   return (int64_t)tv.tv_sec * 1000000LL + (tv.tv_nsec / 1000);
@@ -64,7 +76,7 @@ get_ts(void)
     if(n > (head)->vh_capacity) {                               \
       (head)->vh_capacity = (n) * 2;                            \
       size_t memsiz = (head)->vh_capacity *                     \
-        sizeof(typeof((head)->vh_p[0]));                        \
+        sizeof((head)->vh_p[0]);                                \
       (head)->vh_p = realloc((head)->vh_p, memsiz);             \
     }                                                           \
     (head)->vh_length = n;                                      \
@@ -74,7 +86,7 @@ get_ts(void)
     if(n > (head)->vh_capacity) {                               \
       (head)->vh_capacity = (n);                                \
       size_t memsiz = (head)->vh_capacity *                     \
-        sizeof(typeof((head)->vh_p[0]));                        \
+        sizeof((head)->vh_p[0]);                                \
       (head)->vh_p = realloc((head)->vh_p, memsiz);             \
     }                                                           \
   } while(0)
@@ -100,7 +112,7 @@ get_ts(void)
         sizeof((head)->vh_p[0]), (void *)cmpfun)
 
 
-static void __attribute__((unused))
+static void VMIR_UNUSED
 vmir_hexdump(const char *pfx, const void *data_, int len)
 {
   int i, j, k;
@@ -161,7 +173,7 @@ bitclr(uint32_t *bs, int v)
 /**
  *
  */
-static int __attribute__((unused))
+static int VMIR_UNUSED
 bitchk(const uint32_t *bs, int v)
 {
   if(bs[v >> 5] & (1 << (v & 31)))

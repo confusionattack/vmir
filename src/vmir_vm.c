@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <unistd.h>
 
 
 typedef struct vm_frame {
@@ -58,7 +57,7 @@ typedef struct vm_frame {
   } while(0)
 
 #else
-#define vm_tracef(f, fmt...)
+#define vm_tracef(f, fmt, ...)
 #endif
 
 #ifdef VM_TRACE
@@ -100,14 +99,14 @@ vmir_traceback(struct ir_unit *iu, const char *info)
 
 #endif
 
-static void __attribute__((noinline)) __attribute__((noreturn))
+static void VMIR_NO_INLINE VMIR_NO_RETURN
 vm_stop(ir_unit_t *iu, int reason, int code)
 {
   iu->iu_exit_code = code;
   longjmp(*iu->iu_err_jmpbuf, reason);
 }
 
-static void __attribute__((noinline)) __attribute__((noreturn))
+static void VMIR_NO_INLINE VMIR_NO_RETURN
 vm_bad_function(ir_unit_t *iu, uint32_t fid)
 {
 #ifndef VM_NO_STACK_FRAME
@@ -119,42 +118,42 @@ vm_bad_function(ir_unit_t *iu, uint32_t fid)
 uint32_t
 vmir_vm_arg32(const void **rfp)
 {
-  const void *rf = *rfp = *rfp - 4;
+  const void *rf = *rfp = (char*)*rfp - 4;
   return *(uint32_t *)rf;
 }
 
 uint64_t
 vmir_vm_arg64(const void **rfp)
 {
-  const void *rf = *rfp = *rfp - 8;
+  const void *rf = *rfp = (char*)*rfp - 8;
   return *(uint64_t *)rf;
 }
 
 double
 vmir_vm_arg_dbl(const void **rfp)
 {
-  const void *rf = *rfp = *rfp - 8;
+  const void *rf = *rfp = (char*)*rfp - 8;
   return *(double *)rf;
 }
 
 float
 vmir_vm_arg_flt(const void **rfp)
 {
-  const void *rf = *rfp = *rfp - 4;
+  const void *rf = *rfp = (char*)*rfp - 4;
   return *(float *)rf;
 }
 
 void *
 vmir_vm_ptr(const void **rfp, ir_unit_t *iu)
 {
-  return vmir_vm_arg32(rfp) + iu->iu_mem;
+  return (char*)iu->iu_mem + vmir_vm_arg32(rfp);
 }
 
 void *
 vmir_vm_ptr_nullchk(const void **rfp, ir_unit_t *iu)
 {
   uint32_t vma = vmir_vm_arg32(rfp);
-  return vma ? vma + iu->iu_mem : NULL;
+  return vma ? (char*)iu->iu_mem + vma : NULL;
 }
 
 ir_function_t *
@@ -169,7 +168,7 @@ vmir_vm_arg_func(const void **rfp, ir_unit_t *iu)
 void
 vmir_vm_retptr(void *ret, void *p, const ir_unit_t *iu)
 {
-  *(uint32_t *)ret = p ? p - iu->iu_mem : 0;
+  *(uint32_t *)ret = p ? (char*)p - (char*)iu->iu_mem : 0;
 }
 
 void
@@ -210,9 +209,9 @@ vmir_vm_vaarg32(const void **rfp, ir_unit_t *iu)
   const uint32_t *p;
   if(iu->iu_mode == VMIR_WASM) {
     p = *rfp;
-    *rfp = *rfp + 4;
+    *rfp = (char*)*rfp + 4;
   } else {
-    p = *rfp = *rfp - 4;
+    p = *rfp = (char*)*rfp - 4;
   }
   return *p;
 }
@@ -223,9 +222,9 @@ vmir_vm_vaarg64(const void **rfp, ir_unit_t *iu)
   const uint64_t *p;
   if(iu->iu_mode == VMIR_WASM) {
     p = *rfp;
-    *rfp = *rfp + 8;
+    *rfp = (char*)*rfp + 8;
   } else {
-    p = *rfp = *rfp - 8;
+    p = *rfp = (char*)*rfp - 8;
   }
   return *p;
 }
@@ -236,9 +235,9 @@ vmir_vm_vaarg_dbl(const void **rfp, ir_unit_t *iu)
   const double *p;
   if(iu->iu_mode == VMIR_WASM) {
     p = *rfp;
-    *rfp = *rfp + 8;
+    *rfp = (char*)*rfp + 8;
   } else {
-    p = *rfp = *rfp - 8;
+    p = *rfp = (char*)*rfp - 8;
   }
   return *p;
 }
@@ -246,7 +245,7 @@ vmir_vm_vaarg_dbl(const void **rfp, ir_unit_t *iu)
 static void *
 vmir_vm_vaptr(const void **rfp, ir_unit_t *iu)
 {
-  return vmir_vm_vaarg32(rfp, iu) + iu->iu_mem;
+  return (char*)iu->iu_mem + vmir_vm_vaarg32(rfp, iu);
 }
 
 
@@ -255,37 +254,37 @@ vmir_vm_vaptr(const void **rfp, ir_unit_t *iu)
 
 
 
-static uint32_t __attribute__((noinline))
+static uint32_t VMIR_NO_INLINE
 vm_strchr(uint32_t a, int b, void *mem)
 {
-  void *s = mem + a;
-  void *r = strchr(s, b);
-  int ret = r ? r - mem : 0;
+  char *s = (char*)mem + a;
+  char *r = strchr(s, b);
+  int ret = r ? (int)(r - (char*)mem) : 0;
   return ret;
 }
 
-static uint32_t __attribute__((noinline))
+static uint32_t VMIR_NO_INLINE
 vm_strdup(uint32_t a, void *mem)
 {
-  void *r = strdup(mem + a);
-  int ret = r ? r - mem : 0;
+  char *r = strdup((char*)mem + a);
+  int ret = r ? (int)(r - (char*)mem) : 0;
   return ret;
 }
 
-static uint32_t __attribute__((noinline))
+static uint32_t VMIR_NO_INLINE
 vm_strrchr(uint32_t a, int b, void *mem)
 {
-  void *s = mem + a;
-  void *r = strrchr(s, b);
-  int ret = r ? r - mem : 0;
+  char *s = (char*)mem + a;
+  char *r = strrchr(s, b);
+  int ret = r ? (int)(r - (char*)mem) : 0;
   return ret;
 }
 
 
-static uint32_t __attribute__((noinline))
+static uint32_t VMIR_NO_INLINE
 vm_vaarg32(void *rf, void **ptr)
 {
-  void *p = *ptr;
+  char *p = *ptr;
   p -= sizeof(uint32_t);
   uint32_t r = *(uint32_t *)p;
   *ptr = p;
@@ -293,10 +292,10 @@ vm_vaarg32(void *rf, void **ptr)
 }
 
 
-static uint64_t __attribute__((noinline))
+static uint64_t VMIR_NO_INLINE
 vm_vaarg64(void *rf, void **ptr)
 {
-  void *p = *ptr;
+  char *p = *ptr;
   p -= sizeof(uint64_t);
   uint64_t r = *(uint64_t *)p;
   *ptr = p;
@@ -304,35 +303,35 @@ vm_vaarg64(void *rf, void **ptr)
 }
 
 #ifdef VM_TRACE
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_wr_u32(const vm_frame_t *f, void *rf, int16_t reg, uint32_t data)
 {
   vm_tracef(f, "Reg 0x%x (u32) = 0x%x", reg, data);
   *(uint32_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_wr_u64(const vm_frame_t *f, void *rf, int16_t reg, uint64_t data)
 {
   vm_tracef(f, "Reg 0x%x (u64) = 0x%"PRIx64"", reg, data);
   *(uint64_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_wr_flt(const vm_frame_t *f, void *rf, int16_t reg, float data)
 {
   vm_tracef(f, "Reg 0x%x (flt) = %f", reg, data);
   *(float *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_wr_dbl(const vm_frame_t *f, void *rf, int16_t reg, double data)
 {
   vm_tracef(f, "Reg 0x%x (dbl) = %f", reg, data);
   *(double *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_load_8(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 {
   uint8_t data = mem_rd8(mem + ea, f->iu);
@@ -341,7 +340,7 @@ vm_load_8(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
   *(uint32_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_load_8_zext_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 {
   uint8_t data = mem_rd8(mem + ea, f->iu);
@@ -350,7 +349,7 @@ vm_load_8_zext_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_
   *(uint32_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_load_8_sext_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 {
   int8_t data = mem_rd8(mem + ea, f->iu);
@@ -359,7 +358,7 @@ vm_load_8_sext_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_
   *(int32_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_load_16(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 {
   uint16_t data = mem_rd16(mem + ea, f->iu);
@@ -368,7 +367,7 @@ vm_load_16(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
   *(uint32_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_load_16_zext_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 {
   uint16_t data = mem_rd16(mem + ea, f->iu);
@@ -377,7 +376,7 @@ vm_load_16_zext_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32
   *(uint32_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_load_16_sext_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 {
   int16_t data = mem_rd16(mem + ea, f->iu);
@@ -386,7 +385,7 @@ vm_load_16_sext_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32
   *(int32_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_load_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 {
   uint32_t data = mem_rd32(mem + ea, f->iu);
@@ -395,7 +394,7 @@ vm_load_32(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
   *(uint32_t *)(rf + reg) = data;
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_load_64(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 {
   uint64_t data = mem_rd64(mem + ea, f->iu);
@@ -405,28 +404,28 @@ vm_load_64(const vm_frame_t *f, void *rf, int16_t reg, void *mem, uint32_t ea)
 }
 
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_store_8(const vm_frame_t *f, void *mem, uint32_t ea, uint8_t v)
 {
   vm_tracef(f, "Store (u8) 0x%x to 0x%08x", v, ea);
   mem_wr8(mem + ea, v, f->iu);
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_store_16(const vm_frame_t *f, void *mem, uint32_t ea, uint16_t v)
 {
   vm_tracef(f, "Store (u16) 0x%x to 0x%08x", v, ea);
   mem_wr16(mem + ea, v, f->iu);
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_store_32(const vm_frame_t *f, void *mem, uint32_t ea, uint32_t v)
 {
   vm_tracef(f, "Store (u32) 0x%x to 0x%08x", v, ea);
   mem_wr32(mem + ea, v, f->iu);
 }
 
-static void __attribute__((noinline))
+static void VMIR_NO_INLINE
 vm_store_64(const vm_frame_t *f, void *mem, uint32_t ea, uint64_t v)
 {
   vm_tracef(f, "Store (u64) 0x%"PRIx64" to 0x%08x", v, ea);
@@ -525,14 +524,15 @@ vm_funcname(int callee, ir_unit_t *iu)
 #define IMMFLT(r) *(float *)(I + r)
 #define IMMDBL(r) *(double *)(I + r)
 
-#define HOSTADDR(x) ((hostmem) + (x))
+#define HOSTADDR(x) (((char*)(hostmem)) + (x))
 
+typedef void *(*jit_code_t)(void *, void *, void *, void *);
 
-static void *
+static
 #ifndef VM_NO_STACK_FRAME
-__attribute__((noinline))
+VMIR_NO_INLINE
 #endif
-  do_jit_call(void *rf, void *mem, void *(*code)(void *, void *, void *, void *))
+void * do_jit_call(void *rf, void *mem, jit_code_t code)
 {
 #if 0
   printf("%p: Pre jit call 8=%x c=%x 10=%x\n", code,
@@ -632,15 +632,15 @@ ror64(uint64_t x, int r)
 
 static int16_t vm_resolve(uint16_t opcode);
 
-static int __attribute__((noinline))
-vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
+static int VMIR_NO_INLINE
+vm_exec(uint16_t *I, char *rf, void *ret, const vm_frame_t *P)
 {
 #ifndef VM_DONT_USE_COMPUTED_GOTO
   if(rf == NULL)
     goto resolve;
 #endif
 
-  int r;
+  int r = 0;
   int16_t opc;
   vm_frame_t F = *P;
   ir_unit_t *iu = F.iu;
@@ -702,7 +702,7 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
 
   VMOP(JIT_CALL)
   {
-    void *(*code)(void *, void *, void *, void*) = iu->iu_jit_mem + UIMM32(0);
+    jit_code_t code = (jit_code_t)((char*)iu->iu_jit_mem + UIMM32(0));
     I = do_jit_call(rf, iu->iu_mem, code);
     NEXT(0);
   }
@@ -721,8 +721,8 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
     *(uint64_t *)ret = UIMM64(0);
     return 0;
 
-  VMOP(B)     I = (void *)I + (int16_t)I[0]; NEXT(0);
-  VMOP(BCOND) I = (void *)I + (int16_t)(R32(0) ? I[1] : I[2]); NEXT(0);
+  VMOP(B)     I = (uint16_t *)((char *)I + (int16_t)I[0]); NEXT(0);
+  VMOP(BCOND) I = (uint16_t *)((char *)I + (int16_t)(R32(0) ? I[1] : I[2])); NEXT(0);
 
   VMOP(JSR)
     vm_tracef(&F, "Calling %s", vm_funcname(I[0], iu));
@@ -786,20 +786,20 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
     else
       r = vm_exec(iu->iu_vm_funcs[I[0]], rf + I[1], rf + I[2], &F);
     RESTORE_CURRENT_FRAME();
-    I = (void *)I + (int16_t)I[3 + r]; NEXT(0);
+    I = (uint16_t *)((char *)I + (int16_t)I[3 + r]); NEXT(0);
 
   VMOP(INVOKE_VM)
     vm_tracef(&F, "Invoking %s", vm_funcname(I[0], iu));
     SET_CALLEE_FUNC(I[0]);
     r = vm_exec(iu->iu_vm_funcs[I[0]], rf + I[1], rf + I[2], &F);
     RESTORE_CURRENT_FRAME();
-    I = (void *)I + (int16_t)I[3 + r]; NEXT(0);
+    I = (uint16_t *)((char *)I + (int16_t)I[3 + r]); NEXT(0);
 
   VMOP(INVOKE_EXT)
     vm_tracef(&F, "Calling %s (external)", vm_funcname(I[0], iu));
     r = iu->iu_function_table[I[0]](rf + I[2], rf + I[1], iu, hostmem);
     RESTORE_CURRENT_FRAME();
-    I = (void *)I + (int16_t)I[3 + r]; NEXT(0);
+    I = (uint16_t *)((char *)I + (int16_t)I[3 + r]); NEXT(0);
 
   VMOP(INVOKE_R)
     vm_tracef(&F, "Calling indirect %s (%d)", vm_funcname(R32(0), iu), R32(0));
@@ -816,7 +816,7 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
     } else {
       vm_bad_function(iu, R32(0));
     }
-    I = (void *)I + (int16_t)I[3 + r]; NEXT(0);
+    I = (uint16_t *)((char *)I + (int16_t)I[3 + r]); NEXT(0);
 
   VMOP(LANDINGPAD)
     AR32(0, iu->iu_exception.exception);
@@ -1049,34 +1049,34 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
   VMOP(OLT_DBL) AR32(0, RDBL(1) <  RDBL(2)); NEXT(3);
   VMOP(OLE_DBL) AR32(0, RDBL(1) <= RDBL(2)); NEXT(3);
 
-  VMOP(ONE_DBL) AR32(0, !__builtin_isnan(RDBL(1))
-                      && !__builtin_isnan(RDBL(2))
+  VMOP(ONE_DBL) AR32(0, !isnan(RDBL(1))
+                      && !isnan(RDBL(2))
                       && RDBL(1) != RDBL(2)); NEXT(3);
 
-  VMOP(ORD_DBL) AR32(0, !__builtin_isnan(RDBL(1))
-                      && !__builtin_isnan(RDBL(2))); NEXT(3);
+  VMOP(ORD_DBL) AR32(0, !isnan(RDBL(1))
+                      && !isnan(RDBL(2))); NEXT(3);
 
-  VMOP(UNO_DBL) AR32(0, __builtin_isnan(RDBL(1))
-                      || __builtin_isnan(RDBL(1))); NEXT(3);
+  VMOP(UNO_DBL) AR32(0, isnan(RDBL(1))
+                      || isnan(RDBL(1))); NEXT(3);
 
-  VMOP(UEQ_DBL) AR32(0, __builtin_isnan(RDBL(1))
-                      || __builtin_isnan(RDBL(2))
+  VMOP(UEQ_DBL) AR32(0, isnan(RDBL(1))
+                      || isnan(RDBL(2))
                       || RDBL(1) == RDBL(2)); NEXT(3);
 
-  VMOP(UGT_DBL) AR32(0, __builtin_isnan(RDBL(1))
-                      || __builtin_isnan(RDBL(2))
+  VMOP(UGT_DBL) AR32(0, isnan(RDBL(1))
+                      || isnan(RDBL(2))
                       || RDBL(1) >  RDBL(2)); NEXT(3);
 
-  VMOP(UGE_DBL) AR32(0, __builtin_isnan(RDBL(1))
-                      || __builtin_isnan(RDBL(2))
+  VMOP(UGE_DBL) AR32(0, isnan(RDBL(1))
+                      || isnan(RDBL(2))
                       || RDBL(1) <= RDBL(2)); NEXT(3);
 
-  VMOP(ULT_DBL) AR32(0, __builtin_isnan(RDBL(1))
-                      || __builtin_isnan(RDBL(2))
+  VMOP(ULT_DBL) AR32(0, isnan(RDBL(1))
+                      || isnan(RDBL(2))
                       || RDBL(1) <  RDBL(2)); NEXT(3);
 
-  VMOP(ULE_DBL) AR32(0, __builtin_isnan(RDBL(1))
-                      || __builtin_isnan(RDBL(2))
+  VMOP(ULE_DBL) AR32(0, isnan(RDBL(1))
+                      || isnan(RDBL(2))
                       || RDBL(1) <= RDBL(2)); NEXT(3);
 
   VMOP(UNE_DBL) AR32(0, RDBL(1) != RDBL(2)); NEXT(3);
@@ -1089,19 +1089,19 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
   VMOP(OLT_DBL_C) AR32(0, RDBL(1) <  IMMDBL(2)); NEXT(6);
   VMOP(OLE_DBL_C) AR32(0, RDBL(1) <= IMMDBL(2)); NEXT(6);
 
-  VMOP(ONE_DBL_C) AR32(0, !__builtin_isnan(RDBL(1)) &&
+  VMOP(ONE_DBL_C) AR32(0, !isnan(RDBL(1)) &&
                         RDBL(1) != IMMDBL(2)); NEXT(6);
-  VMOP(ORD_DBL_C) AR32(0, !__builtin_isnan(RDBL(1))); NEXT(6);
-  VMOP(UNO_DBL_C) AR32(0,  __builtin_isnan(RDBL(1))); NEXT(6);
-  VMOP(UEQ_DBL_C) AR32(0, __builtin_isnan(RDBL(1)) ||
+  VMOP(ORD_DBL_C) AR32(0, !isnan(RDBL(1))); NEXT(6);
+  VMOP(UNO_DBL_C) AR32(0,  isnan(RDBL(1))); NEXT(6);
+  VMOP(UEQ_DBL_C) AR32(0, isnan(RDBL(1)) ||
                         RDBL(1) == IMMDBL(2)); NEXT(6);
-  VMOP(UGT_DBL_C) AR32(0, __builtin_isnan(RDBL(1)) ||
+  VMOP(UGT_DBL_C) AR32(0, isnan(RDBL(1)) ||
                         RDBL(1) >  IMMDBL(2)); NEXT(6);
-  VMOP(UGE_DBL_C) AR32(0, __builtin_isnan(RDBL(1)) ||
+  VMOP(UGE_DBL_C) AR32(0, isnan(RDBL(1)) ||
                         RDBL(1) <= IMMDBL(2)); NEXT(6);
-  VMOP(ULT_DBL_C) AR32(0, __builtin_isnan(RDBL(1)) ||
+  VMOP(ULT_DBL_C) AR32(0, isnan(RDBL(1)) ||
                         RDBL(1) <  IMMDBL(2)); NEXT(6);
-  VMOP(ULE_DBL_C) AR32(0, __builtin_isnan(RDBL(1)) ||
+  VMOP(ULE_DBL_C) AR32(0, isnan(RDBL(1)) ||
                         RDBL(1) <= IMMDBL(2)); NEXT(6);
   VMOP(UNE_DBL_C) AR32(0, RDBL(1) != IMMDBL(2)); NEXT(6);
 
@@ -1113,34 +1113,34 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
   VMOP(OLT_FLT) AR32(0, RFLT(1) <  RFLT(2)); NEXT(3);
   VMOP(OLE_FLT) AR32(0, RFLT(1) <= RFLT(2)); NEXT(3);
 
-  VMOP(ONE_FLT) AR32(0, !__builtin_isnan(RFLT(1))
-                      && !__builtin_isnan(RFLT(2))
+  VMOP(ONE_FLT) AR32(0, !isnan(RFLT(1))
+                      && !isnan(RFLT(2))
                       && RFLT(1) != RFLT(2)); NEXT(3);
 
-  VMOP(ORD_FLT) AR32(0, !__builtin_isnan(RFLT(1))
-                      && !__builtin_isnan(RFLT(2))); NEXT(3);
+  VMOP(ORD_FLT) AR32(0, !isnan(RFLT(1))
+                      && !isnan(RFLT(2))); NEXT(3);
 
-  VMOP(UNO_FLT) AR32(0, __builtin_isnan(RFLT(1))
-                      || __builtin_isnan(RFLT(1))); NEXT(3);
+  VMOP(UNO_FLT) AR32(0, isnan(RFLT(1))
+                      || isnan(RFLT(1))); NEXT(3);
 
-  VMOP(UEQ_FLT) AR32(0, __builtin_isnan(RFLT(1))
-                      || __builtin_isnan(RFLT(2))
+  VMOP(UEQ_FLT) AR32(0, isnan(RFLT(1))
+                      || isnan(RFLT(2))
                       || RFLT(1) == RFLT(2)); NEXT(3);
 
-  VMOP(UGT_FLT) AR32(0, __builtin_isnan(RFLT(1))
-                      || __builtin_isnan(RFLT(2))
+  VMOP(UGT_FLT) AR32(0, isnan(RFLT(1))
+                      || isnan(RFLT(2))
                       || RFLT(1) >  RFLT(2)); NEXT(3);
 
-  VMOP(UGE_FLT) AR32(0, __builtin_isnan(RFLT(1))
-                      || __builtin_isnan(RFLT(2))
+  VMOP(UGE_FLT) AR32(0, isnan(RFLT(1))
+                      || isnan(RFLT(2))
                       || RFLT(1) <= RFLT(2)); NEXT(3);
 
-  VMOP(ULT_FLT) AR32(0, __builtin_isnan(RFLT(1))
-                      || __builtin_isnan(RFLT(2))
+  VMOP(ULT_FLT) AR32(0, isnan(RFLT(1))
+                      || isnan(RFLT(2))
                       || RFLT(1) <  RFLT(2)); NEXT(3);
 
-  VMOP(ULE_FLT) AR32(0, __builtin_isnan(RFLT(1))
-                      || __builtin_isnan(RFLT(2))
+  VMOP(ULE_FLT) AR32(0, isnan(RFLT(1))
+                      || isnan(RFLT(2))
                       || RFLT(1) <= RFLT(2)); NEXT(3);
 
   VMOP(UNE_FLT) AR32(0, RFLT(1) != RFLT(2)); NEXT(3);
@@ -1153,66 +1153,66 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
   VMOP(OLT_FLT_C) AR32(0, RFLT(1) <  IMMFLT(2)); NEXT(4);
   VMOP(OLE_FLT_C) AR32(0, RFLT(1) <= IMMFLT(2)); NEXT(4);
 
-  VMOP(ONE_FLT_C) AR32(0, !__builtin_isnan(RFLT(1)) &&
+  VMOP(ONE_FLT_C) AR32(0, !isnan(RFLT(1)) &&
                         RFLT(1) != IMMFLT(2)); NEXT(4);
-  VMOP(ORD_FLT_C) AR32(0, !__builtin_isnan(RFLT(1))); NEXT(4);
-  VMOP(UNO_FLT_C) AR32(0,  __builtin_isnan(RFLT(1))); NEXT(4);
-  VMOP(UEQ_FLT_C) AR32(0, __builtin_isnan(RFLT(1)) ||
+  VMOP(ORD_FLT_C) AR32(0, !isnan(RFLT(1))); NEXT(4);
+  VMOP(UNO_FLT_C) AR32(0,  isnan(RFLT(1))); NEXT(4);
+  VMOP(UEQ_FLT_C) AR32(0, isnan(RFLT(1)) ||
                         RFLT(1) == IMMFLT(2)); NEXT(4);
-  VMOP(UGT_FLT_C) AR32(0, __builtin_isnan(RFLT(1)) ||
+  VMOP(UGT_FLT_C) AR32(0, isnan(RFLT(1)) ||
                         RFLT(1) >  IMMFLT(2)); NEXT(4);
-  VMOP(UGE_FLT_C) AR32(0, __builtin_isnan(RFLT(1)) ||
+  VMOP(UGE_FLT_C) AR32(0, isnan(RFLT(1)) ||
                         RFLT(1) <= IMMFLT(2)); NEXT(4);
-  VMOP(ULT_FLT_C) AR32(0, __builtin_isnan(RFLT(1)) ||
+  VMOP(ULT_FLT_C) AR32(0, isnan(RFLT(1)) ||
                         RFLT(1) <  IMMFLT(2)); NEXT(4);
-  VMOP(ULE_FLT_C) AR32(0, __builtin_isnan(RFLT(1)) ||
+  VMOP(ULE_FLT_C) AR32(0, isnan(RFLT(1)) ||
                         RFLT(1) <= IMMFLT(2)); NEXT(4);
   VMOP(UNE_FLT_C) AR32(0, RFLT(1) != IMMFLT(2)); NEXT(4);
 
 
-  VMOP(EQ8_BR)    I = (void *)I + (int16_t)(R8(2) == R8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(NE8_BR)    I = (void *)I + (int16_t)(R8(2) != R8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(UGT8_BR)   I = (void *)I + (int16_t)(R8(2) >  R8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(UGE8_BR)   I = (void *)I + (int16_t)(R8(2) >= R8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(ULT8_BR)   I = (void *)I + (int16_t)(R8(2) <  R8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(ULE8_BR)   I = (void *)I + (int16_t)(R8(2) <= R8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SGT8_BR)   I = (void *)I + (int16_t)(S8(2) >  S8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SGE8_BR)   I = (void *)I + (int16_t)(S8(2) >= S8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SLT8_BR)   I = (void *)I + (int16_t)(S8(2) <  S8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SLE8_BR)   I = (void *)I + (int16_t)(S8(2) <= S8(3) ? I[0] : I[1]); NEXT(0);
+  VMOP(EQ8_BR)    I = (uint16_t *)((char *)I + (int16_t)(R8(2) == R8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(NE8_BR)    I = (uint16_t *)((char *)I + (int16_t)(R8(2) != R8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(UGT8_BR)   I = (uint16_t *)((char *)I + (int16_t)(R8(2) >  R8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(UGE8_BR)   I = (uint16_t *)((char *)I + (int16_t)(R8(2) >= R8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(ULT8_BR)   I = (uint16_t *)((char *)I + (int16_t)(R8(2) <  R8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(ULE8_BR)   I = (uint16_t *)((char *)I + (int16_t)(R8(2) <= R8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SGT8_BR)   I = (uint16_t *)((char *)I + (int16_t)(S8(2) >  S8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SGE8_BR)   I = (uint16_t *)((char *)I + (int16_t)(S8(2) >= S8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SLT8_BR)   I = (uint16_t *)((char *)I + (int16_t)(S8(2) <  S8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SLE8_BR)   I = (uint16_t *)((char *)I + (int16_t)(S8(2) <= S8(3) ? I[0] : I[1])); NEXT(0);
 
-  VMOP(EQ8_C_BR)  I = (void *)I + (int16_t)(R8(2) == UIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(NE8_C_BR)  I = (void *)I + (int16_t)(R8(2) != UIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(UGT8_C_BR) I = (void *)I + (int16_t)(R8(2) >  UIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(UGE8_C_BR) I = (void *)I + (int16_t)(R8(2) >= UIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(ULT8_C_BR) I = (void *)I + (int16_t)(R8(2) <  UIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(ULE8_C_BR) I = (void *)I + (int16_t)(R8(2) <= UIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SGT8_C_BR) I = (void *)I + (int16_t)(S8(2) >  SIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SGE8_C_BR) I = (void *)I + (int16_t)(S8(2) >= SIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SLT8_C_BR) I = (void *)I + (int16_t)(S8(2) <  SIMM8(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SLE8_C_BR) I = (void *)I + (int16_t)(S8(2) <= SIMM8(3) ? I[0] : I[1]); NEXT(0);
+  VMOP(EQ8_C_BR)  I = (uint16_t *)((char *)I + (int16_t)(R8(2) == UIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(NE8_C_BR)  I = (uint16_t *)((char *)I + (int16_t)(R8(2) != UIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(UGT8_C_BR) I = (uint16_t *)((char *)I + (int16_t)(R8(2) >  UIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(UGE8_C_BR) I = (uint16_t *)((char *)I + (int16_t)(R8(2) >= UIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(ULT8_C_BR) I = (uint16_t *)((char *)I + (int16_t)(R8(2) <  UIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(ULE8_C_BR) I = (uint16_t *)((char *)I + (int16_t)(R8(2) <= UIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SGT8_C_BR) I = (uint16_t *)((char *)I + (int16_t)(S8(2) >  SIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SGE8_C_BR) I = (uint16_t *)((char *)I + (int16_t)(S8(2) >= SIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SLT8_C_BR) I = (uint16_t *)((char *)I + (int16_t)(S8(2) <  SIMM8(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SLE8_C_BR) I = (uint16_t *)((char *)I + (int16_t)(S8(2) <= SIMM8(3) ? I[0] : I[1])); NEXT(0);
 
-  VMOP(EQ32_BR)    I = (void *)I + (int16_t)(R32(2) == R32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(NE32_BR)    I = (void *)I + (int16_t)(R32(2) != R32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(UGT32_BR)   I = (void *)I + (int16_t)(R32(2) >  R32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(UGE32_BR)   I = (void *)I + (int16_t)(R32(2) >= R32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(ULT32_BR)   I = (void *)I + (int16_t)(R32(2) <  R32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(ULE32_BR)   I = (void *)I + (int16_t)(R32(2) <= R32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SGT32_BR)   I = (void *)I + (int16_t)(S32(2) >  S32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SGE32_BR)   I = (void *)I + (int16_t)(S32(2) >= S32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SLT32_BR)   I = (void *)I + (int16_t)(S32(2) <  S32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SLE32_BR)   I = (void *)I + (int16_t)(S32(2) <= S32(3) ? I[0] : I[1]); NEXT(0);
+  VMOP(EQ32_BR)    I = (uint16_t *)((char *)I + (int16_t)(R32(2) == R32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(NE32_BR)    I = (uint16_t *)((char *)I + (int16_t)(R32(2) != R32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(UGT32_BR)   I = (uint16_t *)((char *)I + (int16_t)(R32(2) >  R32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(UGE32_BR)   I = (uint16_t *)((char *)I + (int16_t)(R32(2) >= R32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(ULT32_BR)   I = (uint16_t *)((char *)I + (int16_t)(R32(2) <  R32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(ULE32_BR)   I = (uint16_t *)((char *)I + (int16_t)(R32(2) <= R32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SGT32_BR)   I = (uint16_t *)((char *)I + (int16_t)(S32(2) >  S32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SGE32_BR)   I = (uint16_t *)((char *)I + (int16_t)(S32(2) >= S32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SLT32_BR)   I = (uint16_t *)((char *)I + (int16_t)(S32(2) <  S32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SLE32_BR)   I = (uint16_t *)((char *)I + (int16_t)(S32(2) <= S32(3) ? I[0] : I[1])); NEXT(0);
 
-  VMOP(EQ32_C_BR)  I = (void *)I + (int16_t)(R32(2) == UIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(NE32_C_BR)  I = (void *)I + (int16_t)(R32(2) != UIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(UGT32_C_BR) I = (void *)I + (int16_t)(R32(2) >  UIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(UGE32_C_BR) I = (void *)I + (int16_t)(R32(2) >= UIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(ULT32_C_BR) I = (void *)I + (int16_t)(R32(2) <  UIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(ULE32_C_BR) I = (void *)I + (int16_t)(R32(2) <= UIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SGT32_C_BR) I = (void *)I + (int16_t)(S32(2) >  SIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SGE32_C_BR) I = (void *)I + (int16_t)(S32(2) >= SIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SLT32_C_BR) I = (void *)I + (int16_t)(S32(2) <  SIMM32(3) ? I[0] : I[1]); NEXT(0);
-  VMOP(SLE32_C_BR) I = (void *)I + (int16_t)(S32(2) <= SIMM32(3) ? I[0] : I[1]); NEXT(0);
+  VMOP(EQ32_C_BR)  I = (uint16_t *)((char *)I + (int16_t)(R32(2) == UIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(NE32_C_BR)  I = (uint16_t *)((char *)I + (int16_t)(R32(2) != UIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(UGT32_C_BR) I = (uint16_t *)((char *)I + (int16_t)(R32(2) >  UIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(UGE32_C_BR) I = (uint16_t *)((char *)I + (int16_t)(R32(2) >= UIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(ULT32_C_BR) I = (uint16_t *)((char *)I + (int16_t)(R32(2) <  UIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(ULE32_C_BR) I = (uint16_t *)((char *)I + (int16_t)(R32(2) <= UIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SGT32_C_BR) I = (uint16_t *)((char *)I + (int16_t)(S32(2) >  SIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SGE32_C_BR) I = (uint16_t *)((char *)I + (int16_t)(S32(2) >= SIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SLT32_C_BR) I = (uint16_t *)((char *)I + (int16_t)(S32(2) <  SIMM32(3) ? I[0] : I[1])); NEXT(0);
+  VMOP(SLE32_C_BR) I = (uint16_t *)((char *)I + (int16_t)(S32(2) <= SIMM32(3) ? I[0] : I[1])); NEXT(0);
 
   VMOP(EQ32_SEL)    AR32(0, R32(3) == R32(4) ? R32(1) : R32(2)); NEXT(5);
   VMOP(NE32_SEL)    AR32(0, R32(3) != R32(4) ? R32(1) : R32(2)); NEXT(5);
@@ -1450,7 +1450,7 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
   VMOP(CAST_DBL_UITOFP_64)   ADBL(0, R64(1)); NEXT(2);
 
   VMOP(JUMPTABLE)
-    I = (void *)I + (int16_t)I[2 + (R8(0) & (I[1] - 1))];
+    I = (uint16_t *)((char *)I + (int16_t)I[2 + (R8(0) & (I[1] - 1))]);
     NEXT(0);
 
   VMOP(SWITCH8_BS) {
@@ -1471,7 +1471,7 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
       if(!((imax == imin) && (UIMM8(imin) == u8)))
         imin = p;
 
-      I = (void *)Iorg + (int16_t)I[p + imin];
+      I = (uint16_t *)((char *)Iorg + (int16_t)I[p + imin]);
       NEXT(0);
     }
 
@@ -1492,7 +1492,7 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
       }
       if(!((imax == imin) && (UIMM32(imin * 2) == u32)))
         imin = p;
-      I = (void *)Iorg + (int16_t)I[p * 2 + imin];
+      I = (uint16_t *)((char *)Iorg + (int16_t)I[p * 2 + imin]);
       NEXT(0);
     }
 
@@ -1514,7 +1514,7 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
       }
       if(!((imax == imin) && (UIMM64(imin * 4) == u64)))
         imin = p;
-      I = (void *)Iorg + (int16_t)I[p * 4 + imin];
+      I = (uint16_t *)((char *)Iorg + (int16_t)I[p * 4 + imin]);
       NEXT(0);
     }
 
@@ -1540,10 +1540,10 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
 
   VMOP(ALLOCAD) {
       F.allocaptr = VMIR_ALIGN(F.allocaptr, I[1]);
-      uint32_t r = F.allocaptr;
+      uint32_t res = F.allocaptr;
       F.allocaptr += UIMM32(3) * R32(2);
       ALLOCATRACEPEAK();
-      AR32(0, r);
+      AR32(0, res);
       NEXT(5);
     }
 
@@ -1579,23 +1579,23 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
 
 
   VMOP(MEMCPY) {
-      uint32_t r = R32(1);
+      uint32_t res = R32(1);
       memcpy(HOSTADDR(R32(1)), HOSTADDR(R32(2)), R32(3));
-      AR32(0, r);
+      AR32(0, res);
       NEXT(4);
     }
 
   VMOP(MEMSET) {
-      uint32_t r = R32(1);
+      uint32_t res = R32(1);
       memset(HOSTADDR(R32(1)), R32(2), R32(3));
-      AR32(0, r);
+      AR32(0, res);
       NEXT(4);
     }
 
   VMOP(MEMMOVE) {
-      uint32_t r = R32(1);
+      uint32_t res = R32(1);
       memmove(HOSTADDR(R32(1)), HOSTADDR(R32(2)), R32(3));
-      AR32(0, r);
+      AR32(0, res);
       NEXT(4);
     }
 
@@ -1610,37 +1610,41 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
     AR32(0, memcmp(HOSTADDR(R32(1)), HOSTADDR(R32(2)), R32(3))); NEXT(4);
 
   VMOP(STRCPY) {
-      uint32_t r = R32(1);
+      uint32_t res = R32(1);
       strcpy(HOSTADDR(R32(1)), HOSTADDR(R32(2)));
-      AR32(0, r);
+      AR32(0, res);
       NEXT(3);
     }
 
   VMOP(STRCAT) {
-      uint32_t r = R32(1);
+      uint32_t res = R32(1);
       strcat(HOSTADDR(R32(1)), HOSTADDR(R32(2)));
-      AR32(0, r);
+      AR32(0, res);
       NEXT(3);
     }
 
   VMOP(STRNCPY) {
-      uint32_t r = R32(1);
+      uint32_t res = R32(1);
       strncpy(HOSTADDR(R32(1)), HOSTADDR(R32(2)), R32(3));
-      AR32(0, r);
+      AR32(0, res);
       NEXT(4);
     }
 
   VMOP(STRNCAT) {
-      uint32_t r = R32(1);
+      uint32_t res = R32(1);
       strncat(HOSTADDR(R32(1)), HOSTADDR(R32(2)), R32(3));
-      AR32(0, r);
+      AR32(0, res);
       NEXT(4);
     }
 
   VMOP(STRCMP)
     AR32(0, strcmp(HOSTADDR(R32(1)), HOSTADDR(R32(2)))); NEXT(3);
   VMOP(STRCASECMP)
+#if defined(__clang__) || defined(__GNUC__)
     AR32(0, strcasecmp(HOSTADDR(R32(1)), HOSTADDR(R32(2)))); NEXT(3);
+#elif defined(_MSC_VER)
+    AR32(0, stricmp(HOSTADDR(R32(1)), HOSTADDR(R32(2)))); NEXT(3);
+#endif
   VMOP(STRNCMP)
     AR32(0, strncmp(HOSTADDR(R32(1)), HOSTADDR(R32(2)), R32(3))); NEXT(4);
   VMOP(STRCHR)
@@ -1653,10 +1657,10 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
     AR32(0, vm_strdup(R32(1), hostmem)); NEXT(2);
 
   VMOP(VAARG32)
-    AR32(0, vm_vaarg32(rf, HOSTADDR(R32(1)))); NEXT(2);
+    AR32(0, vm_vaarg32(rf, (void **)HOSTADDR(R32(1)))); NEXT(2);
 
   VMOP(VAARG64)
-    AR64(0, vm_vaarg64(rf, HOSTADDR(R32(1)))); NEXT(2);
+    AR64(0, vm_vaarg64(rf, (void **)HOSTADDR(R32(1)))); NEXT(2);
 
   VMOP(VASTART)
     *(void **)HOSTADDR(R32(0)) = rf + S32(1);
@@ -1666,42 +1670,50 @@ vm_exec(uint16_t *I, void *rf, void *ret, const vm_frame_t *P)
     *(void **)HOSTADDR(R32(0)) = *(void **)HOSTADDR(R32(1));
     NEXT(2);
 
+#if defined(__clang__) || defined(__GNUC__)
   VMOP(CTZ32) AR32(0, __builtin_ctz(R32(1))); NEXT(2);
   VMOP(CLZ32) AR32(0, __builtin_clz(R32(1))); NEXT(2);
   VMOP(POP32) AR32(0, __builtin_popcount(R32(1))); NEXT(2);
-
   VMOP(CTZ64) AR64(0, __builtin_ctzll(R64(1))); NEXT(2);
   VMOP(CLZ64) AR64(0, __builtin_clzll(R64(1))); NEXT(2);
   VMOP(POP64) AR64(0, __builtin_popcountll(R64(1))); NEXT(2);
+#elif defined(_MSC_VER)
+  VMOP(CTZ32) AR32(0, __lzcnt(R32(1))); NEXT(2);
+  VMOP(CLZ32) AR32(0, __lzcnt(R32(1))); NEXT(2);
+  VMOP(POP32) AR32(0, __popcnt(R32(1))); NEXT(2);
+  VMOP(CTZ64) AR64(0, __lzcnt64(R64(1))); NEXT(2);
+  VMOP(CLZ64) AR64(0, __lzcnt64(R64(1))); NEXT(2);
+  VMOP(POP64) AR64(0, __popcnt64(R64(1))); NEXT(2);
+#endif
 
   VMOP(UADDO32)
   {
-    uint32_t r;
+    uint32_t res;
 #if __has_builtin(__builtin_uadd_overflow)
-    AR32(1, __builtin_uadd_overflow(R32(2), R32(3), &r));
+    AR32(1, __builtin_uadd_overflow(R32(2), R32(3), &res));
 #else
     uint32_t a = R32(2);
     uint32_t b = R32(3);
     AR32(1, UINT32_MAX - a < b);
-    r = a + b;
+    res = a + b;
 #endif
-    AR32(0, r);
+    AR32(0, res);
     NEXT(4);
   }
 
   VMOP(UMULO32)
   {
-    uint32_t r;
+    uint32_t res;
 #if __has_builtin(__builtin_umul_overflow)
-    AR32(1, __builtin_umul_overflow(R32(2), R32(3), &r));
+    AR32(1, __builtin_umul_overflow(R32(2), R32(3), &res));
 #else
     uint32_t a = R32(2);
     uint32_t b = R32(3);
     uint64_t p = a * b;
-    r = p;
+    res = p;
     AR32(1, (p >> 32) != 0);
 #endif
-    AR32(0, r);
+    AR32(0, res);
     NEXT(4);
   }
 
@@ -2339,10 +2351,10 @@ vm_resolve(uint16_t opcode)
 static void
 emit_i16(ir_unit_t *iu, uint16_t i16)
 {
-  if(iu->iu_text_ptr + 2 >= iu->iu_text_alloc + iu->iu_text_alloc_memsize)
+  if((char *)iu->iu_text_ptr + 2 >= (char *)iu->iu_text_alloc + iu->iu_text_alloc_memsize)
     parser_error(iu, "Function too big");
   *(uint16_t *)iu->iu_text_ptr = i16;
-  iu->iu_text_ptr += 2;
+  iu->iu_text_ptr = (char *)iu->iu_text_ptr + 2;
 }
 
 
@@ -2364,10 +2376,10 @@ emit_imm16(ir_unit_t *iu, int immediate)
 static void
 emit_i8(ir_unit_t *iu, uint8_t i8)
 {
-  if(iu->iu_text_ptr + 2 >= iu->iu_text_alloc + iu->iu_text_alloc_memsize)
+  if((char *)iu->iu_text_ptr + 2 >= (char *)iu->iu_text_alloc + iu->iu_text_alloc_memsize)
     parser_error(iu, "Function too big");
   *(uint8_t *)iu->iu_text_ptr = i8;
-  iu->iu_text_ptr += 2; // We always align to 16 bits
+  iu->iu_text_ptr = (char *)iu->iu_text_ptr + 2; // We always align to 16 bits
 }
 
 /**
@@ -2376,10 +2388,10 @@ emit_i8(ir_unit_t *iu, uint8_t i8)
 static void
 emit_i32(ir_unit_t *iu, uint32_t i32)
 {
-  if(iu->iu_text_ptr + 4 >= iu->iu_text_alloc + iu->iu_text_alloc_memsize)
+  if((char *)iu->iu_text_ptr + 4 >= (char *)iu->iu_text_alloc + iu->iu_text_alloc_memsize)
     parser_error(iu, "Function too big");
   *(uint32_t *)iu->iu_text_ptr = i32;
-  iu->iu_text_ptr += 4;
+  iu->iu_text_ptr = (char *)iu->iu_text_ptr + 4;
 }
 
 /**
@@ -2388,10 +2400,10 @@ emit_i32(ir_unit_t *iu, uint32_t i32)
 static void
 emit_i64(ir_unit_t *iu, uint64_t i64)
 {
-  if(iu->iu_text_ptr + 8 >= iu->iu_text_alloc + iu->iu_text_alloc_memsize)
+  if((char *)iu->iu_text_ptr + 8 >= (char *)iu->iu_text_alloc + iu->iu_text_alloc_memsize)
     parser_error(iu, "Function too big");
   *(uint64_t *)iu->iu_text_ptr = i64;
-  iu->iu_text_ptr += 8;
+  iu->iu_text_ptr = (char *)iu->iu_text_ptr + 8;
 }
 
 /**
@@ -2400,10 +2412,10 @@ emit_i64(ir_unit_t *iu, uint64_t i64)
 static void *
 emit_data(ir_unit_t *iu, int size)
 {
-  if(iu->iu_text_ptr + size >= iu->iu_text_alloc + iu->iu_text_alloc_memsize)
+  if((char *)iu->iu_text_ptr + size >= (char *)iu->iu_text_alloc + iu->iu_text_alloc_memsize)
     parser_error(iu, "Function too big");
   void *r = iu->iu_text_ptr;
-  iu->iu_text_ptr += size;
+  iu->iu_text_ptr = (char *)iu->iu_text_ptr + size;
   return r;
 }
 
@@ -2432,7 +2444,7 @@ emit_op1(ir_unit_t *iu, vm_op_t op, uint16_t arg)
 /**
  *
  */
-static void __attribute__((unused))
+static void VMIR_UNUSED
 emit_op2(ir_unit_t *iu, vm_op_t op,
          uint16_t a1, uint16_t a2)
 {
@@ -2572,7 +2584,7 @@ emit_binop(ir_unit_t *iu, ir_instr_binary_t *ii)
   const ir_value_t *lhs = value_get(iu, ii->lhs_value.value);
   const ir_value_t *rhs = value_get(iu, ii->rhs_value.value);
   const ir_value_t *ret = value_get(iu, ii->super.ii_ret.value);
-  vm_op_t op;
+  vm_op_t op = VM_NOP;
   const ir_type_t *it = type_get(iu, ii->lhs_value.type);
 
   if(lhs->iv_class == IR_VC_REGFRAME &&
@@ -3286,7 +3298,7 @@ emit_cmp2(ir_unit_t *iu, ir_instr_binary_t *ii)
       switch(legalize_type(it)) {
 
       case IR_TYPE_DOUBLE:
-        if(__builtin_isnan(rhs->iv_double))
+        if(isnan(rhs->iv_double))
           parser_error(iu, "Ugh, immediate is nan in fcmp");
         vm_align32(iu, 1);
         emit_op2(iu, pred - FCMP_OEQ + VM_OEQ_DBL_C,
@@ -3295,7 +3307,7 @@ emit_cmp2(ir_unit_t *iu, ir_instr_binary_t *ii)
         return;
 
       case IR_TYPE_FLOAT:
-        if(__builtin_isnan(rhs->iv_float))
+        if(isnan(rhs->iv_float))
           parser_error(iu, "Ugh, immediate is nan in fcmp");
 
         vm_align32(iu, 1);
@@ -3401,7 +3413,7 @@ emit_cmp_branch(ir_unit_t *iu, ir_instr_cmp_branch_t *ii)
   const ir_value_t *rhs = value_get(iu, ii->rhs_value.value);
   const ir_type_t *it = type_get(iu, ii->lhs_value.type);
 
-  int textpos = iu->iu_text_ptr - iu->iu_text_alloc;
+  int textpos = (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc;
   VECTOR_PUSH_BACK(&iu->iu_branch_fixups, textpos);
 
   if(lhs->iv_class == IR_VC_REGFRAME &&
@@ -3507,8 +3519,8 @@ emit_cmp_select(ir_unit_t *iu, ir_instr_cmp_select_t *ii)
   const ir_value_t *falseval = value_get(iu, ii->false_value.value);
   const ir_type_t *it = type_get(iu, ii->lhs_value.type);
 
-  int truereg;
-  int falsereg;
+  int truereg = 0;
+  int falsereg = 0;
 
 
   if(rhs->iv_class == IR_VC_REGFRAME && lhs->iv_class != IR_VC_REGFRAME) {
@@ -3617,7 +3629,7 @@ emit_cmp_select(ir_unit_t *iu, ir_instr_cmp_select_t *ii)
 static void
 emit_br(ir_unit_t *iu, ir_instr_br_t *ii, ir_bb_t *currentib)
 {
-  int textpos = iu->iu_text_ptr - iu->iu_text_alloc;
+  int textpos = (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc;
   VECTOR_PUSH_BACK(&iu->iu_branch_fixups, textpos);
 
   // We can't emit code yet cause we don't know the final destination
@@ -3702,7 +3714,7 @@ emit_switch(ir_unit_t *iu, ir_instr_switch_t *ii)
     }
 
     VECTOR_PUSH_BACK(&iu->iu_branch_fixups,
-                     iu->iu_text_ptr - iu->iu_text_alloc);
+                     (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc);
     emit_i16(iu, VM_SWITCH8_BS);
     emit_i16(iu, reg);
     emit_i16(iu, ii->num_paths);
@@ -3728,7 +3740,7 @@ emit_switch(ir_unit_t *iu, ir_instr_switch_t *ii)
 
   switch32:
     VECTOR_PUSH_BACK(&iu->iu_branch_fixups,
-                     iu->iu_text_ptr - iu->iu_text_alloc);
+                     (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc);
 
     emit_i16(iu, VM_SWITCH32_BS);
 
@@ -3750,7 +3762,7 @@ emit_switch(ir_unit_t *iu, ir_instr_switch_t *ii)
     vm_align32(iu, 1);
 
     VECTOR_PUSH_BACK(&iu->iu_branch_fixups,
-                     iu->iu_text_ptr - iu->iu_text_alloc);
+                     (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc);
     emit_i16(iu, VM_SWITCH64_BS);
     emit_i16(iu, reg);
     emit_i16(iu, ii->num_paths);
@@ -3767,7 +3779,7 @@ emit_switch(ir_unit_t *iu, ir_instr_switch_t *ii)
 
   jumptable:
     VECTOR_PUSH_BACK(&iu->iu_branch_fixups,
-                     iu->iu_text_ptr - iu->iu_text_alloc);
+                     (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc);
     emit_i16(iu, VM_JUMPTABLE);
     emit_i16(iu, reg);
     emit_i16(iu, jumptable_size);
@@ -3945,7 +3957,7 @@ emit_lea(ir_unit_t *iu, ir_instr_lea_t *ii)
 
     assert(ii->value_offset_multiply != 0);
 
-    int fb = ffs(ii->value_offset_multiply) - 1;
+    int fb = __builtin_ffs(ii->value_offset_multiply) - 1;
     if((1 << fb) == ii->value_offset_multiply) {
 
       if(ii->immediate_offset) {
@@ -3988,7 +4000,7 @@ emit_cast(ir_unit_t *iu, ir_instr_unary_t *ii)
   const int dstcode = legalize_type(dstty);
   const int castop = ii->op;
 
-  vm_op_t op;
+  vm_op_t op = VM_NOP;
   switch(COMBINE3(dstcode, castop, srccode)) {
 
   case COMBINE3(IR_TYPE_INT1, CAST_TRUNC, IR_TYPE_INT8):
@@ -4244,7 +4256,7 @@ emit_call(ir_unit_t *iu, ir_instr_call_t *ii, ir_function_t *f)
 static void
 emit_invoke(ir_unit_t *iu, ir_instr_call_t *ii, ir_function_t *f)
 {
-  const int textpos = iu->iu_text_ptr - iu->iu_text_alloc;
+  const int textpos = (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc;
   VECTOR_PUSH_BACK(&iu->iu_branch_fixups, textpos);
 
   int rf_offset = f->if_regframe_size;
@@ -4449,7 +4461,7 @@ static void
 emit_vaarg(ir_unit_t *iu, ir_instr_unary_t *ii)
 {
   const ir_value_t *val = value_get(iu, ii->value.value);
-  int valreg;
+  int valreg = 0;
   switch(val->iv_class) {
   case IR_VC_REGFRAME:
     valreg = value_reg(val);
@@ -4715,7 +4727,7 @@ branch_fixup(ir_unit_t *iu)
   for(int i = 0; i < x; i++) {
     int off = VECTOR_ITEM(&iu->iu_branch_fixups, i);
 
-    uint16_t *I = f->if_vm_text + off;
+    uint16_t *I = (uint16_t *)((char *)f->if_vm_text + off);
     switch(I[0]) {
     case VM_B:
       I[1] = bb_to_offset_delta(iu, f, I[1], off);
@@ -4731,7 +4743,46 @@ branch_fixup(ir_unit_t *iu)
       I[4] = bb_to_offset_delta(iu, f, I[4], off);
       I[5] = bb_to_offset_delta(iu, f, I[5], off);
       break;
-    case VM_EQ8_BR ... VM_SLE32_C_BR:
+    case VM_EQ8_BR:
+    case VM_NE8_BR:
+    case VM_UGT8_BR:
+    case VM_UGE8_BR:
+    case VM_ULT8_BR:
+    case VM_ULE8_BR:
+    case VM_SGT8_BR:
+    case VM_SGE8_BR:
+    case VM_SLT8_BR:
+    case VM_SLE8_BR:
+    case VM_EQ8_C_BR:
+    case VM_NE8_C_BR:
+    case VM_UGT8_C_BR:
+    case VM_UGE8_C_BR:
+    case VM_ULT8_C_BR:
+    case VM_ULE8_C_BR:
+    case VM_SGT8_C_BR:
+    case VM_SGE8_C_BR:
+    case VM_SLT8_C_BR:
+    case VM_SLE8_C_BR:
+    case VM_EQ32_BR:
+    case VM_NE32_BR:
+    case VM_UGT32_BR:
+    case VM_UGE32_BR:
+    case VM_ULT32_BR:
+    case VM_ULE32_BR:
+    case VM_SGT32_BR:
+    case VM_SGE32_BR:
+    case VM_SLT32_BR:
+    case VM_SLE32_BR:
+    case VM_EQ32_C_BR:
+    case VM_NE32_C_BR:
+    case VM_UGT32_C_BR:
+    case VM_UGE32_C_BR:
+    case VM_ULT32_C_BR:
+    case VM_ULE32_C_BR:
+    case VM_SGT32_C_BR:
+    case VM_SGE32_C_BR:
+    case VM_SLT32_C_BR:
+    case VM_SLE32_C_BR:
       I[1] = bb_to_offset_delta(iu, f, I[1], off);
       I[2] = bb_to_offset_delta(iu, f, I[2], off);
       break;
@@ -4804,7 +4855,7 @@ vm_emit_function(ir_unit_t *iu, ir_function_t *f)
       continue;
     }
 #endif
-    ib->ib_text_offset = iu->iu_text_ptr - iu->iu_text_alloc;
+    ib->ib_text_offset = (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc;
     if(iu->iu_debug_flags_func & VMIR_DBG_BB_INSTRUMENT) {
       emit_op(iu, VM_INSTRUMENT_COUNT);
       emit_i32(iu, VECTOR_LEN(&iu->iu_instrumentation));
@@ -4826,10 +4877,10 @@ vm_emit_function(ir_unit_t *iu, ir_function_t *f)
 #ifdef VMIR_VM_JIT
   jitctx_done(iu, f, &jc);
 #endif
-  f->if_vm_text_size = iu->iu_text_ptr - iu->iu_text_alloc;
+  f->if_vm_text_size = (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc;
   if(f->if_full_jit) {
     assert(f->if_vm_text_size == 0);
-    f->if_ext_func = iu->iu_jit_mem + f->if_jit_offset;
+    f->if_ext_func = (vm_function_t *)((char *)iu->iu_jit_mem + f->if_jit_offset);
   } else {
     f->if_vm_text = malloc(f->if_vm_text_size);
     memcpy(f->if_vm_text, iu->iu_text_alloc, f->if_vm_text_size);
@@ -4987,7 +5038,7 @@ vmir_vm_function_call(ir_unit_t *iu, ir_function_t *f, void *out, ...)
   argpos += it->it_function.num_parameters * sizeof(uint32_t);
 
   void *rf = alloca(4096 * sizeof(uint32_t));
-  void *rfa = rf + argpos;
+  void *rfa = (char *)rf + argpos;
 
   for(int i = 0; i < it->it_function.num_parameters; i++) {
     const ir_type_t *arg = &VECTOR_ITEM(&iu->iu_types,
@@ -4999,12 +5050,12 @@ vmir_vm_function_call(ir_unit_t *iu, ir_function_t *f, void *out, ...)
     case IR_TYPE_POINTER:
       argpos -= 4;
       u32 = va_arg(ap, int);
-      *(uint32_t *)(rf + argpos) = u32;
+      *(uint32_t *)((char *)rf + argpos) = u32;
       break;
     case IR_TYPE_INT64:
       argpos -= 8;
       u64 = va_arg(ap, uint64_t);
-      *(uint64_t *)(rf + argpos) = u64;
+      *(uint64_t *)((char *)rf + argpos) = u64;
       break;
 
     default:

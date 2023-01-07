@@ -44,31 +44,6 @@ typedef enum {
 } vmir_errcode_t;
 
 
-typedef enum {
-  VMIR_FS_OPEN_READ    = 0x1,   // Open file for reading
-  VMIR_FS_OPEN_WRITE   = 0x2,   // Open file for writing
-  VMIR_FS_OPEN_RW      = 0x3,   // Read + Write
-  VMIR_FS_OPEN_CREATE  = 0x4,   // Create file if not exist
-  VMIR_FS_OPEN_TRUNC   = 0x8,   // Truncate file
-  VMIR_FS_OPEN_APPEND  = 0x10,  // Position file pointer at end of file
-} vmir_openflags_t;
-
-
-typedef struct {
-  vmir_errcode_t(*open)(void *opaque, const char *path,
-                        vmir_openflags_t flags, intptr_t *fh);
-
-  void (*close)(void *opaque, intptr_t fh);
-
-  ssize_t (*read)(void *opaque, intptr_t fh, void *buf, size_t count);
-  ssize_t (*write)(void *opaque, intptr_t fh, const void *buf, size_t count);
-
-  int64_t (*seek)(void *opaque, intptr_t fh, int64_t offset, int whence);
-
-} vmir_fsops_t;
-
-
-
 /**
  * Create a new environment
  *
@@ -150,12 +125,6 @@ vmir_function_resolver_t vmir_get_external_function_resolver(ir_unit_t *);
  */
 void vmir_set_external_function_resolver(ir_unit_t * iu,
                                          vmir_function_resolver_t fn);
-
-/**
- * Override defaults functions for filesystem access
- */
-void vmir_set_fsops(ir_unit_t *iu, const vmir_fsops_t *ops);
-
 
 /**
  * Parse bitcode and generate code, data, etc
@@ -368,10 +337,6 @@ void vmir_walk_heap(ir_unit_t *iu,
                     void (*fn)(void *opaque, uint32_t addr, uint32_t size,
                                int inuse),
                     void *opaque);
-
-void vmir_walk_fds(ir_unit_t *iu,
-                   void (*fn)(void *opaque, int fd, int type),
-                   void *opaque);
 
 typedef struct vmir_stats {
 

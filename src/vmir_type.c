@@ -333,6 +333,7 @@ type_find_by_code(ir_unit_t *iu, ir_type_code_t code)
       return i;
   }
   parser_error(iu, "Unable to find type class %d", code);
+  return -1;
 }
 
 
@@ -379,6 +380,7 @@ type_sizeof_ptr(ir_unit_t *iu, const ir_type_t *it)
   bad:
     parser_error(iu, "Unable to compute size of type %s\n",
                  type_str(iu, it));
+    return 0;
   }
 }
 
@@ -435,6 +437,7 @@ type_bitwidth(ir_unit_t *iu, const ir_type_t *it)
   default:
     parser_error(iu, "Unable to compute bitwidth of type %s\n",
                  type_str(iu, it));
+    return -1;
   }
 }
 
@@ -479,6 +482,7 @@ type_alignment_ptr(ir_unit_t *iu, const ir_type_t *it)
   bad:
     parser_error(iu, "Unable to compute alignment for type %s\n",
                  type_str(iu, it));
+    return 0;
   }
 }
 
@@ -493,7 +497,7 @@ type_alignment(ir_unit_t *iu, int index)
 /**
  *
  */
-static void __attribute__((unused))
+static void VMIR_UNUSED
 type_print_list(ir_unit_t *iu)
 {
   for(int i = 0; i < VECTOR_LEN(&iu->iu_types); i++) {

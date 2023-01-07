@@ -40,7 +40,7 @@ bb_add_before(ir_function_t *f, ir_bb_t *before)
 /**
  *
  */
-__attribute__((unused))
+VMIR_UNUSED
 static ir_bb_t *
 bb_add_named(ir_function_t *f, ir_bb_t *after, const char *name)
 {
@@ -166,7 +166,7 @@ function_print(ir_unit_t *iu, ir_function_t *f, const char *what)
     ir_instr_t *ii;
     printf(".%d:%s%s%s%s%s", ib->ib_id,
            ib->ib_name ? " \"" : "",
-           ib->ib_name ?: "",
+           ib->ib_name ? ib->ib_name : "",
            ib->ib_name ? "\"" : "",
            ib->ib_jit ? " (JIT)" : "",
            ib->ib_only_jit_sucessors ? " (Only JIT succ)" : "");

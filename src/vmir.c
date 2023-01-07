@@ -22,23 +22,40 @@
  * SOFTWARE.
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <setjmp.h>
 #include <string.h>
 #include <stdarg.h>
 #include <inttypes.h>
-#include <sys/queue.h>
 #include <assert.h>
-#include <sys/param.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "bsd/queue.h"
+
 #include "bitcode.h"
 
 #include <time.h>
-#include <sys/time.h>
+
+#if defined(_MSC_VER)
+#define VM_DONT_USE_COMPUTED_GOTO
+#endif
+
+#if defined(__clang__) || defined(__GNUC__)
+#define VMIR_NO_INLINE __attribute__((noinline))
+#define VMIR_NO_RETURN __attribute__((noreturn))
+#define VMIR_UNUSED __attribute__((unused))
+#define VMIR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#elif defined(_MSC_VER)
+#define VMIR_NO_INLINE __declspec(noinline)
+#define VMIR_NO_RETURN
+#define VMIR_UNUSED
+#define VMIR_WARN_UNUSED_RESULT
+#endif
 
 #include "vmir.h"
 
@@ -185,13 +202,6 @@ struct ir_unit {
 
   uint32_t iu_stack_stash;
 
-  struct vFILE *iu_stdin;
-  struct vFILE *iu_stdout;
-  struct vFILE *iu_stderr;
-  const vmir_fsops_t *iu_fsops;
-  VECTOR_HEAD(, struct vmir_fd) iu_vfds;
-  int iu_vfd_free;  // Point to first free FD (-1 == nothing free)
-  LIST_HEAD(, vFILE) iu_vfiles;
   char *iu_strtok_tmp;
 
 
@@ -270,14 +280,6 @@ struct ir_unit {
   vmir_logger_t *iu_logger;
   vmir_log_level_t iu_log_level;
 };
-
-static uint32_t
-vmir_host_to_vmaddr(ir_unit_t *iu, void *ptr)
-{
-  if(ptr == NULL)
-    return 0;
-  return ptr - iu->iu_mem;
-}
 
 /**
  * Attribute
@@ -506,13 +508,13 @@ static void type_print_list(ir_unit_t *iu);
 static void value_print_list(ir_unit_t *iu);
 static void function_print(ir_unit_t *iu, ir_function_t *f, const char *what);
 
-#define parser_error(iu, fmt...) \
+#define parser_error(iu, fmt, ...) \
   parser_error0(iu, __FILE__, __LINE__, fmt)
 
 /**
  *
  */
-static void __attribute__((noreturn))
+static void VMIR_NO_RETURN
 parser_error0(ir_unit_t *iu, const char *file, int line,
               const char *fmt, ...)
 {
@@ -538,7 +540,7 @@ parser_error0(ir_unit_t *iu, const char *file, int line,
 /**
  *
  */
-static char * __attribute__((warn_unused_result))
+static char * VMIR_WARN_UNUSED_RESULT
 tmpstr(ir_unit_t *iu, int len)
 {
   int idx = (iu->iu_tmp_str_ptr++) & (IU_MAX_TMP_STR - 1);
@@ -552,7 +554,7 @@ tmpstr(ir_unit_t *iu, int len)
 /**
  *
  */
-static int __attribute__((warn_unused_result))
+static int VMIR_WARN_UNUSED_RESULT
 addstr(char **dst, const char *str)
 {
   int len = strlen(str);
@@ -567,7 +569,7 @@ addstr(char **dst, const char *str)
 /**
  *
  */
-static int __attribute__((warn_unused_result))
+static int VMIR_WARN_UNUSED_RESULT
 addstrf(char **dst, const char *fmt, ...)
 {
   int len = 0;
@@ -590,7 +592,7 @@ addstrf(char **dst, const char *fmt, ...)
 #include "vmir_instr.c"
 #include "vmir_function.c"
 #if defined(__arm__) && (defined(__linux__) || defined(__ANDROID__))
-#include "vmir_jit_arm.c"
+// #include "vmir_jit_arm.c"
 #endif
 #include "vmir_transform.c"
 #include "vmir_vm.c"
@@ -663,7 +665,7 @@ initialize_global(ir_unit_t *iu, void *addr,
       for(int i = 0; i < x; i++) {
         ir_value_t *subvalue = value_get(iu, ivt[i].value);
         initialize_global(iu, addr, dstty->it_array.element_type, subvalue);
-        addr += type_sizeof(iu, dstty->it_array.element_type);
+        addr = (char *)addr + type_sizeof(iu, dstty->it_array.element_type);
       }
 
       break;
@@ -686,7 +688,7 @@ initialize_global(ir_unit_t *iu, void *addr,
       ivt = c->iv_data;
       for(int i = 0; i < x; i++) {
         ir_value_t *subvalue = value_get(iu, ivt[i].value);
-        initialize_global(iu, addr + dstty->it_struct.elements[i].offset,
+        initialize_global(iu, (char *)addr + dstty->it_struct.elements[i].offset,
                           dstty->it_struct.elements[i].type, subvalue);
       }
       break;
@@ -721,7 +723,7 @@ initialize_globals(ir_unit_t *iu, void *mem)
            value_str_id(iu, ii->ii_globalvar),
            value_str_id(iu, ii->ii_constant));
 #endif
-    initialize_global(iu, mem + ig->ig_addr, ig->ig_type, c);
+    initialize_global(iu, (char *)mem + ig->ig_addr, ig->ig_type, c);
   }
 }
 
@@ -756,7 +758,7 @@ iu_cleanup(ir_unit_t *iu)
 
   for(int i = 0; i < VECTOR_LEN(&iu->iu_attrsets); i++) {
     ir_attrset_t *ias = &VECTOR_ITEM(&iu->iu_attrsets, i);
-    free(ias->ias_list);
+    free((void*)ias->ias_list);
   }
   VECTOR_CLEAR(&iu->iu_attrsets);
 
@@ -800,7 +802,6 @@ vmir_destroy(ir_unit_t *iu)
   free(iu->iu_triple);
   free(iu->iu_debugged_function);
 
-  VECTOR_CLEAR(&iu->iu_vfds);
   free(iu);
 }
 
@@ -826,7 +827,7 @@ vmir_create(void *membase, uint32_t memsize,
   iu->iu_text_alloc = malloc(iu->iu_text_alloc_memsize);
 
   iu->iu_mem_low = iu->iu_mem;
-  iu->iu_mem_high = iu->iu_mem + memsize;
+  iu->iu_mem_high = (char *)iu->iu_mem + memsize;
 
   return iu;
 }
@@ -881,7 +882,7 @@ run_global_ctors(ir_unit_t *iu)
   int num_ctors = ig->ig_size / ctor_size;
 
   for(int i = 0; i < num_ctors; i++) {
-    uint32_t fn = mem_rd32(iu->iu_mem + ig->ig_addr + ctor_size * i + 4, iu);
+    uint32_t fn = mem_rd32((char *)iu->iu_mem + ig->ig_addr + ctor_size * i + 4, iu);
     if(fn < VECTOR_LEN(&iu->iu_functions)) {
       ir_function_t *f = VECTOR_ITEM(&iu->iu_functions, fn);
       vmir_vm_function_call(iu, f, NULL);
@@ -1032,7 +1033,7 @@ vmir_argv_copy(ir_unit_t *iu, int argc, char **argv)
 
   for(int i = 0; i < argc; i++) {
     uint32_t str = vmir_mem_strdup(iu, argv[i]);
-    mem_wr32(vm_argv_host + i * sizeof(uint32_t), str, iu);
+    mem_wr32((char *)vm_argv_host + i * sizeof(uint32_t), str, iu);
   }
   return vm_argv;
 }
