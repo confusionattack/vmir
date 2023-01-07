@@ -311,7 +311,6 @@ vm_ext_function_t *vmir_function_tab_lookup(const char *function,
 #define VMIR_DBG_DUMP_DEV         0x8
 #define VMIR_DBG_DUMP_REGALLOC    0x10
 #define VMIR_DBG_BB_INSTRUMENT    0x20
-#define VMIR_DBG_DISABLE_JIT      0x40
 #define VMIR_DBG_IGNORE_UNRESOLVED_FUNCTIONS 0x80
 
 void vmir_set_debug_flags(ir_unit_t *iu, int flags);
@@ -341,7 +340,6 @@ void vmir_walk_heap(ir_unit_t *iu,
 typedef struct vmir_stats {
 
   int vm_code_size;
-  int jit_code_size;
   int data_size;
   int peak_heap_size;
   int peak_stack_size;

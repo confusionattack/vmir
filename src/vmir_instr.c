@@ -381,7 +381,6 @@ static int
 instr_print(char **dstp, ir_unit_t *iu, const ir_instr_t *ii, int flags)
 {
   int len = 0;
-  len += addstr(dstp, ii->ii_jit ? "J" : " ");
   if(ii->ii_ret.value < -1) {
     int num_values = -ii->ii_ret.value;
     len += addstr(dstp, "{ ");

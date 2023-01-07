@@ -207,12 +207,7 @@ static uint32_t
 vmir_vm_vaarg32(const void **rfp, ir_unit_t *iu)
 {
   const uint32_t *p;
-  if(iu->iu_mode == VMIR_WASM) {
-    p = *rfp;
-    *rfp = (char*)*rfp + 4;
-  } else {
-    p = *rfp = (char*)*rfp - 4;
-  }
+  p = *rfp = (char*)*rfp - 4;
   return *p;
 }
 
@@ -220,12 +215,7 @@ static uint64_t
 vmir_vm_vaarg64(const void **rfp, ir_unit_t *iu)
 {
   const uint64_t *p;
-  if(iu->iu_mode == VMIR_WASM) {
-    p = *rfp;
-    *rfp = (char*)*rfp + 8;
-  } else {
-    p = *rfp = (char*)*rfp - 8;
-  }
+  p = *rfp = (char*)*rfp - 8;
   return *p;
 }
 
@@ -233,12 +223,7 @@ static double
 vmir_vm_vaarg_dbl(const void **rfp, ir_unit_t *iu)
 {
   const double *p;
-  if(iu->iu_mode == VMIR_WASM) {
-    p = *rfp;
-    *rfp = (char*)*rfp + 8;
-  } else {
-    p = *rfp = (char*)*rfp - 8;
-  }
+  p = *rfp = (char*)*rfp - 8;
   return *p;
 }
 
@@ -526,30 +511,6 @@ vm_funcname(int callee, ir_unit_t *iu)
 
 #define HOSTADDR(x) (((char*)(hostmem)) + (x))
 
-typedef void *(*jit_code_t)(void *, void *, void *, void *);
-
-static
-#ifndef VM_NO_STACK_FRAME
-VMIR_NO_INLINE
-#endif
-void * do_jit_call(void *rf, void *mem, jit_code_t code)
-{
-#if 0
-  printf("%p: Pre jit call 8=%x c=%x 10=%x\n", code,
-         *(uint32_t *)(rf + 8),
-         *(uint32_t *)(rf + 12),
-         *(uint32_t *)(rf + 16));
-#endif
-  void *r = code(NULL, rf, NULL, mem);
-#if 0
-  printf("%p: Post jit call 8=%x c=%x 10=%x\n", code,
-         *(uint32_t *)(rf + 8),
-         *(uint32_t *)(rf + 12),
-         *(uint32_t *)(rf + 16));
-#endif
-  return r;
-}
-
 #ifdef VM_TRACE
 
 static int vm_find_backref(const void *A, const void *B)
@@ -699,13 +660,6 @@ vm_exec(uint16_t *I, char *rf, void *ret, const vm_frame_t *P)
 
   VMOP(RET_VOID)
     return 0;
-
-  VMOP(JIT_CALL)
-  {
-    jit_code_t code = (jit_code_t)((char*)iu->iu_jit_mem + UIMM32(0));
-    I = do_jit_call(rf, iu->iu_mem, code);
-    NEXT(0);
-  }
 
   VMOP(RET_R32)
     *(uint32_t *)ret = R32(0);
@@ -1735,7 +1689,6 @@ vm_exec(uint16_t *I, char *rf, void *ret, const vm_frame_t *P)
   switch(I[0]) {
   case VM_NOP:       return &&NOP      - &&opz;     break;
 
-  case VM_JIT_CALL:  return &&JIT_CALL - &&opz;     break;
   case VM_RET_VOID:  return &&RET_VOID - &&opz;     break;
   case VM_RET_R32:   return &&RET_R32  - &&opz;     break;
   case VM_RET_R64:   return &&RET_R64  - &&opz;     break;
@@ -4561,44 +4514,13 @@ emit_resume(ir_unit_t *iu, ir_instr_resume_t *r)
  *
  */
 static void
-instr_emit(ir_unit_t *iu, ir_bb_t *bb, ir_function_t *f
-#ifdef VMIR_VM_JIT
-           , jitctx_t *jc
-#endif
-           )
+instr_emit(ir_unit_t *iu, ir_bb_t *bb, ir_function_t *f)
 {
   ir_instr_t *ii;
   //  printf("=========== BB %s.%d\n", f->if_name, bb->ib_id);
 
-
-#ifdef VMIR_VM_JIT
-  if(bb->ib_jit) {
-    int jitoffset = jit_emit(iu, bb, jc);
-
-    if(bb->ib_only_jit_sucessors)
-      return;
-    assert(jitoffset >= 0);
-#ifdef VM_TRACE
-    char tmp[128];
-    ir_instr_backref_t *iib = f->if_instr_backrefs + f->if_instr_backref_size;
-    iib->offset = iu->iu_text_ptr - iu->iu_text_alloc;
-    snprintf(tmp, sizeof(tmp), "JIT CALL to 0x%x", jitoffset);
-    iib->str = strdup(tmp);
-    iib->bb = bb->ib_id;
-    f->if_instr_backref_size++;
-#endif
-    emit_op(iu, VM_JIT_CALL);
-    emit_i32(iu, jitoffset);
-    return;
-  } else if(bb->ib_force_jit_entrypoint) {
-    jit_emit_stub(iu, bb, jc);
-  }
-#endif
-
-
   TAILQ_FOREACH(ii, &bb->ib_instrs, ii_link) {
     //    printf("EMIT INSTR: %s\n", instr_str(iu, ii, 1));
-    assert(ii->ii_jit == 0);
 
 #ifdef VM_TRACE
     ir_instr_backref_t *iib = f->if_instr_backrefs + f->if_instr_backref_size;
@@ -4827,9 +4749,6 @@ vm_emit_function(ir_unit_t *iu, ir_function_t *f)
   iu->iu_text_ptr = iu->iu_text_alloc;
 
   VECTOR_RESIZE(&iu->iu_branch_fixups, 0);
-  VECTOR_RESIZE(&iu->iu_jit_vmbb_fixups, 0);
-  VECTOR_RESIZE(&iu->iu_jit_branch_fixups, 0);
-  VECTOR_RESIZE(&iu->iu_jit_bb_to_addr_fixups, 0);
 
 #ifdef VM_TRACE
   int total_instructions = 0;
@@ -4842,19 +4761,7 @@ vm_emit_function(ir_unit_t *iu, ir_function_t *f)
   f->if_instr_backref_size = 0;
 #endif
 
-#ifdef VMIR_VM_JIT
-  jitctx_t jc;
-  jitctx_init(iu, f, &jc);
-  f->if_jit_offset = iu->iu_jit_ptr;
-#endif
-
   TAILQ_FOREACH(ib, &f->if_bbs, ib_link) {
-#ifdef VMIR_VM_JIT
-    if(f->if_full_jit) {
-      jit_emit(iu, ib, &jc);
-      continue;
-    }
-#endif
     ib->ib_text_offset = (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc;
     if(iu->iu_debug_flags_func & VMIR_DBG_BB_INSTRUMENT) {
       emit_op(iu, VM_INSTRUMENT_COUNT);
@@ -4867,30 +4774,15 @@ vm_emit_function(ir_unit_t *iu, ir_function_t *f)
       ir_instrumentation_t ii = {f, ib->ib_id, num_instructions, 0};
       VECTOR_PUSH_BACK(&iu->iu_instrumentation, ii);
     }
-    instr_emit(iu, ib, f
-#ifdef VMIR_VM_JIT
-               ,&jc
-#endif
-               );
+    instr_emit(iu, ib, f);
   }
 
-#ifdef VMIR_VM_JIT
-  jitctx_done(iu, f, &jc);
-#endif
   f->if_vm_text_size = (char *)iu->iu_text_ptr - (char *)iu->iu_text_alloc;
-  if(f->if_full_jit) {
-    assert(f->if_vm_text_size == 0);
-    f->if_ext_func = (vm_function_t *)((char *)iu->iu_jit_mem + f->if_jit_offset);
-  } else {
-    f->if_vm_text = malloc(f->if_vm_text_size);
-    memcpy(f->if_vm_text, iu->iu_text_alloc, f->if_vm_text_size);
+  f->if_vm_text = malloc(f->if_vm_text_size);
+  memcpy(f->if_vm_text, iu->iu_text_alloc, f->if_vm_text_size);
 
-    iu->iu_stats.vm_code_size += f->if_vm_text_size;
-    branch_fixup(iu);
-  }
-#ifdef VMIR_VM_JIT
-  jit_branch_fixup(iu, f);
-#endif
+  iu->iu_stats.vm_code_size += f->if_vm_text_size;
+  branch_fixup(iu);
 }
 
 

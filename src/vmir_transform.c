@@ -1687,9 +1687,6 @@ reg_alloc(ir_unit_t *iu, const uint32_t *mtx, int temp_values, int ffv,
     if(s == 2) {
       vi[num_vertices].class = RA_CLASS_REGFRAME_64;
     } else if(s == 1) {
-      if(iv->iv_jit)
-        vi[num_vertices].class = RA_CLASS_MACHINEREG_32;
-      else
         vi[num_vertices].class = RA_CLASS_REGFRAME_32;
     } else {
       abort();
@@ -1759,40 +1756,6 @@ reg_alloc(ir_unit_t *iu, const uint32_t *mtx, int temp_values, int ffv,
     printf("%s: Reg allocation, %d temporaries",
            f->if_name, temp_values);
 
-
-#ifdef JIT_MACHINE_REGS
-  for(int c = 0; c < RA_CLASS_REGFRAME_32; c++) {
-
-    int regframe_slots = 0;
-    int machine_regs_used = 0;
-    const int rsize = 4;
-
-    for(int i = 0; i < num_vertices; i++) {
-      const int val_index = vi[i].value;
-      if(vi[i].class != c)
-        continue;
-      const int color = colors[val_index];
-      ir_value_t *iv = VECTOR_ITEM(&iu->iu_values, val_index + ffv);
-
-      if(color < JIT_MACHINE_REGS) {
-        iv->iv_class = IR_VC_MACHINEREG;
-        iv->iv_reg = color;
-        machine_regs_used = VMIR_MAX(color + 1, machine_regs_used);
-      } else {
-        // Not enough machine regs, put value in regframe instead
-        iv->iv_class = IR_VC_REGFRAME;
-        const int rfcol = color - JIT_MACHINE_REGS;
-        regframe_slots = VMIR_MAX(regframe_slots, rfcol + 1);
-        iv->iv_reg = f->if_regframe_size + rfcol * rsize;
-      }
-    }
-    f->if_regframe_size += regframe_slots * rsize;
-
-    if(iu->iu_debug_flags_func & VMIR_DBG_DUMP_REGALLOC)
-      printf(", %d machine regs (%d spilled)",
-             machine_regs_used, regframe_slots);
-  }
-#endif
 
   for(int c = RA_CLASS_REGFRAME_32; c < RA_CLASSES; c++) {
     const int rsize = class_reg_size[c];
@@ -2080,14 +2043,6 @@ coalesce(ir_unit_t *iu,
             LIST_REMOVE(ivi, ivi_value_link);
             ivi->ivi_value = saved;
             LIST_INSERT_HEAD(&saved->iv_instructions, ivi, ivi_value_link);
-#ifdef VMIR_VM_JIT
-            if(!(iu->iu_debug_flags_func & VMIR_DBG_DISABLE_JIT)) {
-              memset(ivi->ivi_instr->ii_liveness,
-                     0, setwords * sizeof(uint32_t) * 3);
-              liveness_set_gen(ivi->ivi_instr, iu,
-                               ivi->ivi_instr->ii_liveness + setwords);
-            }
-#endif
             if(iu->iu_debug_flags_func & VMIR_DBG_DUMP_REGALLOC) {
               printf("\tPost altering instruction %s\n",
                      instr_str(iu, ivi->ivi_instr, 1));
@@ -2118,13 +2073,6 @@ coalesce(ir_unit_t *iu,
   }
 
   remove_empty_bb(iu, f);
-
-#ifdef VMIR_VM_JIT
-  if(!(iu->iu_debug_flags_func & VMIR_DBG_DISABLE_JIT)) {
-    liveness_update(f, setwords, ffv);
-    jit_analyze(iu, f, setwords, ffv);
-  }
-#endif
 
   reg_alloc(iu, mtx, temp_values, ffv, f);
   free(mtx);

@@ -177,15 +177,6 @@ struct ir_unit {
   jmp_buf *iu_err_jmpbuf;
   int iu_exit_code;
   void *iu_opaque;
-  void *iu_jit_mem;
-  int iu_jit_mem_alloced;
-  int iu_jit_ptr;
-  uint32_t iu_jit_cpuflags;
-
-  enum {
-    VMIR_BITCODE,
-    VMIR_WASM,
-  } iu_mode;
 
   vmir_exception_t iu_exception;
 
@@ -244,9 +235,6 @@ struct ir_unit {
   VECTOR_HEAD(, struct ir_initializer) iu_initializers;
 
   VECTOR_HEAD(, int) iu_branch_fixups;
-  VECTOR_HEAD(, int) iu_jit_vmbb_fixups;
-  VECTOR_HEAD(, int) iu_jit_branch_fixups;
-  VECTOR_HEAD(, int) iu_jit_bb_to_addr_fixups;
 
   int iu_types_created;
 
@@ -265,14 +253,6 @@ struct ir_unit {
   int         iu_err_line;
   int         iu_failed;
   int         iu_vstoffset;
-
-  // WASM
-
-  VECTOR_HEAD(, int) iu_wasm_type_map;
-  VECTOR_HEAD(, ir_valuetype_t) iu_wasm_globalvar_map;
-  VECTOR_HEAD(, int) iu_wasm_functions;
-  VECTOR_HEAD(, ir_valuetype_t) iu_wasm_value_stack;
-  VECTOR_HEAD(, struct ir_bb *) iu_wasm_cfg_stack;
 
   // Stats
 
@@ -313,7 +293,6 @@ struct ir_function {
   char *if_name;
   char if_isproto;
   char if_used;
-  char if_full_jit;
   int if_regframe_size; // Size of all temporary registers
   int if_callarg_size;  // Size of all (non vararg) arguments
   int if_gfid;          // Global function id
@@ -331,8 +310,6 @@ struct ir_function {
 
   struct ir_instr_backref *if_instr_backrefs;
   int if_instr_backref_size;
-
-  int if_jit_offset;
 
 #ifndef VM_NO_STACK_FRAME
   int if_peak_stack_use;
@@ -368,12 +345,8 @@ typedef struct ir_bb {
   TAILQ_ENTRY(ir_bb) ib_link;
   struct ir_instr_queue ib_instrs;
   int ib_text_offset;
-  int ib_jit_offset;
   int ib_id;
   uint8_t ib_mark;
-  uint8_t ib_jit;
-  uint8_t ib_only_jit_sucessors;
-  uint8_t ib_force_jit_entrypoint;
 
   struct ir_bb_edge_list ib_incoming_edges;
   struct ir_bb_edge_list ib_outgoing_edges;
@@ -468,7 +441,6 @@ typedef struct ir_instr {
   struct ir_bb **ii_succ;
   SLIST_ENTRY(ir_instr) ii_tmplink;
   int16_t ii_num_succ;
-  uint8_t ii_jit;
 } ir_instr_t;
 
 
@@ -591,17 +563,12 @@ addstrf(char **dst, const char *fmt, ...)
 #include "vmir_vm.h"
 #include "vmir_instr.c"
 #include "vmir_function.c"
-#if defined(__arm__) && (defined(__linux__) || defined(__ANDROID__))
-// #include "vmir_jit_arm.c"
-#endif
 #include "vmir_transform.c"
 #include "vmir_vm.c"
 #include "vmir_libc.c"
 
 #include "vmir_bitcode_instr.c"
 #include "vmir_bitcode_parser.c"
-
-#include "vmir_wasm_parser.c"
 
 
 /**
@@ -738,17 +705,8 @@ iu_cleanup(ir_unit_t *iu)
 
   VECTOR_CLEAR(&iu->iu_argv);
   VECTOR_CLEAR(&iu->iu_branch_fixups);
-  VECTOR_CLEAR(&iu->iu_jit_vmbb_fixups);
-  VECTOR_CLEAR(&iu->iu_jit_branch_fixups);
-  VECTOR_CLEAR(&iu->iu_jit_bb_to_addr_fixups);
   VECTOR_CLEAR(&iu->iu_initializers);
   VECTOR_CLEAR(&iu->iu_values);
-
-  VECTOR_CLEAR(&iu->iu_wasm_type_map);
-  VECTOR_CLEAR(&iu->iu_wasm_globalvar_map);
-  VECTOR_CLEAR(&iu->iu_wasm_functions);
-  VECTOR_CLEAR(&iu->iu_wasm_value_stack);
-  VECTOR_CLEAR(&iu->iu_wasm_cfg_stack);
 
   ir_attr_t *ia;
   while((ia = LIST_FIRST(&iu->iu_attribute_groups)) != NULL) {
@@ -908,21 +866,11 @@ vmir_load(ir_unit_t *iu, const uint8_t *u8, int len)
     return VMIR_ERR_LOAD_ERROR;
   }
 
-#ifdef VMIR_VM_JIT
-  jit_init(iu);
-#endif
-
   const uint32_t magic = read_bits(&bs, 32);
   iu->iu_data_ptr = 4096;
   switch(magic) {
 
-  case 0x6d736100: // WebAssembly
-    iu->iu_mode = VMIR_WASM;
-    wasm_parse_module(iu, u8 + 4, u8 + len);
-    break;
-
   case 0xdec04342: // LLVM Bitcode
-    // WebAssembly need memory at 0. Bitcode don't really.
     ir_parse_blocks(iu, 2, NULL, NULL, &bs);
     break;
   default:
@@ -931,9 +879,6 @@ vmir_load(ir_unit_t *iu, const uint8_t *u8, int len)
 
   free(iu->iu_text_alloc);
 
-#ifdef VMIR_VM_JIT
-  jit_seal_code(iu);
-#endif
   iu->iu_heap_start = VMIR_ALIGN(iu->iu_data_ptr, 4096);
   iu->iu_stats.data_size = iu->iu_heap_start;
 

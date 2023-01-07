@@ -685,10 +685,7 @@ dofmt(void (*output)(void *opaque, const char *str, int len),
 static const void *
 vmir_valist(const void **rf, ir_unit_t *iu)
 {
-  if(iu->iu_mode == VMIR_WASM)
-    return (const void *)vmir_vm_ptr(rf, iu);
-  else
-    return *(void **)vmir_vm_ptr(rf, iu);
+  return *(void **)vmir_vm_ptr(rf, iu);
 }
 
 
@@ -744,9 +741,6 @@ vmir_snprintf(void *ret, const void *rf, ir_unit_t *iu)
   int dstlen = vmir_vm_arg32(&rf);
   const char *fmt = vmir_vm_ptr(&rf, iu);
 
-  if(iu->iu_mode == VMIR_WASM)
-    rf = (const void *)vmir_vm_ptr(&rf, iu);
-
   fmt_sn_aux_t aux;
   aux.dst = dst;
   aux.remain = dstlen;
@@ -790,9 +784,6 @@ vmir_sprintf(void *ret, const void *rf, ir_unit_t *iu)
   char *dst = vmir_vm_ptr(&rf, iu);
   const char *fmt = vmir_vm_ptr(&rf, iu);
 
-  if(iu->iu_mode == VMIR_WASM)
-    rf = (const void *)vmir_vm_ptr(&rf, iu);
-
   fmt_sn_aux_t aux;
   aux.dst = dst;
   aux.remain = INT32_MAX;
@@ -834,9 +825,6 @@ static int
 vmir_printf(void *ret, const void *rf, ir_unit_t *iu)
 {
   const char *fmt = vmir_vm_ptr(&rf, iu);
-
-  if(iu->iu_mode == VMIR_WASM)
-    rf = (const void *)vmir_vm_ptr(&rf, iu);
 
   int total = 0;
   dofmt(fmt_file, &total, fmt, rf, iu);

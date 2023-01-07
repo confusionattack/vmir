@@ -44,7 +44,6 @@ dump_stats(ir_unit_t *iu)
   printf(" Memory usage stats\n");
   printf("\n");
   printf("       VM code size: %d\n", s->vm_code_size);
-  printf("      JIT code size: %d\n", s->jit_code_size);
   printf("          Data size: %d\n", s->data_size);
   printf("     Peak heap size: %d\n", s->peak_heap_size);
   printf("   Peak stack usage: %d\n", s->peak_stack_size);
@@ -96,9 +95,6 @@ main(int argc, char **argv)
       break;
     case 'b':
       debug_flags |= VMIR_DBG_BB_INSTRUMENT;
-      break;
-    case 'j':
-      debug_flags |= VMIR_DBG_DISABLE_JIT;
       break;
     case 'I':
       debug_flags |= VMIR_DBG_IGNORE_UNRESOLVED_FUNCTIONS;

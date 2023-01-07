@@ -23,7 +23,6 @@
  */
 
 typedef enum {
-  VM_JIT_CALL,
   VM_RET_VOID,
   VM_RET_R32,
   VM_RET_R64,

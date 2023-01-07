@@ -113,7 +113,6 @@ typedef struct ir_value {
     int iv_reg;
 
     int iv_num_values; // For aggregate types
-    int iv_jit;        // For IR_VC_TEMPORARY that only exist in JITed code (Machine registers)
   };
 
   int iv_precolored;
